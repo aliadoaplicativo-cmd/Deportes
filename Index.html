@@ -2,109 +2,186 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gestión Deportiva</title>
-    <!-- Tailwind CSS por CDN para prototipado rápido -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Profesor - Gestión Deportiva</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .custom-bg { background-color: var(--color-principal, #1e40af); }
-        .custom-text { color: var(--color-secundario, #facc15); }
-    </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100 p-4">
 
-    <!-- Header Dinámico -->
-    <header id="app-header" class="custom-bg text-white p-4 shadow-md flex justify-between items-center hidden">
-        <div class="flex items-center gap-3">
-            <img id="colegio-logo" src="" alt="Logo" class="h-10 w-10 object-contain bg-white rounded-full p-1 hidden">
-            <h1 id="colegio-nombre" class="text-xl font-bold custom-text">Plataforma Deportiva</h1>
-        </div>
-        <button onclick="cerrarSesion()" class="text-sm underline">Cerrar Sesión</button>
-    </header>
+<script>
+    // 👇 PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT 👇
+    const URL_BACKEND = "https://script.google.com/macros/s/PEGAR_TU_URL_AQUI/exec";
 
-    <main class="p-4 max-w-5xl mx-auto">
-        <!-- Pantalla de Login Simple -->
-        <div id="login-view" class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md mt-20">
-            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Acceso del Personal</h2>
-            <div class="mb-4">
-                <label class="block text-gray-700 text-sm font-bold mb-2">DNI del Usuario</label>
-                <input id="dni-login" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: 12345678">
-            </div>
-            <div class="mb-6">
-                <label class="block text-gray-700 text-sm font-bold mb-2">ID Colegio</label>
-                <input id="id-colegio-login" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: COL-001">
-            </div>
-            <button onclick="iniciarSesion()" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">Ingresar</button>
-            <p id="login-error" class="text-red-500 text-sm text-center mt-3 hidden">Datos incorrectos.</p>
-        </div>
+    // Variables globales
+    let estadoGlobal = { idColegio: "", idEquipoSeleccionado: "", rosterActivo: [] };
 
-        <!-- Pantalla de Equipos (Dashboard) -->
-        <div id="dashboard-view" class="hidden mt-8">
-            <h2 class="text-2xl font-bold mb-4 text-gray-800">Mis Equipos</h2>
-            <div id="grid-equipos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Se inyectan las cards desde JS -->
-            </div>
-        </div>
-    </main>
-
-    <script>
-        // Variables globales
-        let currentDni = '';
-        let currentColegio = '';
-
-        function iniciarSesion() {
-            const dni = document.getElementById('dni-login').value;
-            const idCol = document.getElementById('id-colegio-login').value;
-            if(!dni || !idCol) return;
+    // 1. Iniciar sesión simulada
+    async function cargarEquipos() {
+        const dni = document.getElementById("dniLogin").value;
+        if (!dni) return alert("Ingrese su DNI");
+        
+        document.getElementById("btnCargar").innerText = "Cargando...";
+        
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerEquipos&dni=${dni}`);
+            const data = await res.json();
             
-            // 1. Cargar Branding
-            google.script.run.withSuccessHandler(res => {
-                document.documentElement.style.setProperty('--color-principal', res.colorPrincipal);
-                document.documentElement.style.setProperty('--color-secundario', res.colorSecundario);
-                document.getElementById('colegio-nombre').innerText = res.nombre;
-                if(res.logoUrl) {
-                    const logo = document.getElementById('colegio-logo');
-                    logo.src = res.logoUrl;
-                    logo.classList.remove('hidden');
-                }
-                document.getElementById('app-header').classList.remove('hidden');
-                
-                // 2. Cargar Equipos
-                currentDni = dni; currentColegio = idCol;
-                cargarEquipos();
-
-            }).withFailureHandler(err => {
-                document.getElementById('login-error').innerText = err.message;
-                document.getElementById('login-error').classList.remove('hidden');
-            }).getConfiguracionColegio(idCol);
-        }
-
-        function cargarEquipos() {
-            google.script.run.withSuccessHandler(equipos => {
-                document.getElementById('login-view').classList.add('hidden');
-                document.getElementById('dashboard-view').classList.remove('hidden');
-                
-                const grid = document.getElementById('grid-equipos');
-                grid.innerHTML = '';
-                equipos.forEach(eq => {
-                    grid.innerHTML += `
-                        <div class="bg-white p-5 rounded-lg shadow border-l-4 border-blue-500 hover:shadow-lg transition cursor-pointer" onclick="abrirRoster('${eq.idEquipo}')">
-                            <h3 class="text-lg font-bold text-gray-800">${eq.nombreEquipo}</h3>
-                            <p class="text-sm text-gray-500 mt-1">Grados: ${eq.gradosPermitidos}</p>
-                            <p class="text-xs text-gray-400 mt-3">Profesor a cargo: ${eq.dniProfesorAsignado}</p>
+            if (data.error) throw new Error(data.error);
+            
+            let htmlEquipos = "";
+            data.datos.forEach(eq => {
+                estadoGlobal.idColegio = eq.idColegio; // Guardamos el colegio para el siguiente query
+                htmlEquipos += `
+                    <div class="bg-white p-4 rounded shadow mb-2 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-lg text-green-800">${eq.nombreEquipo}</h3>
+                            <p class="text-sm text-gray-500">${eq.gradosPermitidos}</p>
                         </div>
-                    `;
-                });
-            }).obtenerEquiposPorRol(currentDni);
+                        <button onclick="abrirRoster('${eq.idEquipo}', '${eq.gradosPermitidos}')" class="bg-green-600 text-white px-4 py-2 rounded">Armar Selección</button>
+                    </div>`;
+            });
+            document.getElementById("listaEquipos").innerHTML = htmlEquipos;
+            document.getElementById("loginView").classList.add("hidden");
+            document.getElementById("equiposView").classList.remove("hidden");
+        } catch (error) {
+            alert(error.message);
         }
+        document.getElementById("btnCargar").innerText = "Ingresar";
+    }
 
-        function abrirRoster(idEquipo) {
-            alert("Aquí abriremos la vista de 'Armar Selección' para el equipo: " + idEquipo);
-            // Lógica de drag & drop para el roster pendiente de implementación
-        }
+    // 2. Abrir la vista de armado de Roster
+    async function abrirRoster(idEquipo, grados) {
+        document.getElementById("equiposView").classList.add("hidden");
+        document.getElementById("rosterView").classList.remove("hidden");
+        document.getElementById("rosterLoader").classList.remove("hidden");
+        document.getElementById("listasRoster").classList.add("hidden");
+        
+        estadoGlobal.idEquipoSeleccionado = idEquipo;
+        estadoGlobal.rosterActivo = [];
 
-        function cerrarSesion() {
-            location.reload();
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerRoster&idEquipo=${idEquipo}&grados=${grados}&idColegio=${estadoGlobal.idColegio}`);
+            const data = await res.json();
+
+            estadoGlobal.rosterActivo = data.seleccionados;
+            renderizarListas(data.disponibles, data.seleccionados);
+
+            document.getElementById("rosterLoader").classList.add("hidden");
+            document.getElementById("listasRoster").classList.remove("hidden");
+        } catch (error) {
+            alert("Error al cargar jugadores: " + error);
         }
-    </script>
+    }
+
+    // 3. Renderizar las columnas de disponibles y seleccionados
+    function renderizarListas(disponibles, seleccionados) {
+        // Columna Disponibles
+        let htmlDisp = "";
+        disponibles.forEach(j => {
+            htmlDisp += `
+                <div class="bg-white p-2 border-b text-sm flex justify-between items-center">
+                    <span>${j.nombre} <br><small class="text-gray-400">${j.grado}</small></span>
+                    <button onclick="moverJugador('${j.dni}', true, '${encodeURIComponent(JSON.stringify(disponibles))}', '${encodeURIComponent(JSON.stringify(seleccionados))}')" class="text-green-500 font-bold text-xl">+</button>
+                </div>`;
+        });
+        document.getElementById("colDisponibles").innerHTML = htmlDisp;
+
+        // Columna Seleccionados
+        let htmlSel = "";
+        seleccionados.forEach(j => {
+            htmlSel += `
+                <div class="bg-green-50 p-2 border-b text-sm flex justify-between items-center">
+                    <span>${j.nombre} <br><small class="text-gray-400">${j.grado}</small></span>
+                    <button onclick="moverJugador('${j.dni}', false, '${encodeURIComponent(JSON.stringify(disponibles))}', '${encodeURIComponent(JSON.stringify(seleccionados))}')" class="text-red-500 font-bold text-xl">-</button>
+                </div>`;
+        });
+        document.getElementById("colSeleccionados").innerHTML = htmlSel;
+    }
+
+    // 4. Mover jugador entre listas localmente (sin ir a la base de datos todavía)
+    function moverJugador(dni, haciaSeleccionados, dispJSON, selJSON) {
+        let disponibles = JSON.parse(decodeURIComponent(dispJSON));
+        let seleccionados = JSON.parse(decodeURIComponent(selJSON));
+
+        if (haciaSeleccionados) {
+            const jug = disponibles.find(j => j.dni == dni);
+            disponibles = disponibles.filter(j => j.dni != dni);
+            seleccionados.push(jug);
+        } else {
+            const jug = seleccionados.find(j => j.dni == dni);
+            seleccionados = seleccionados.filter(j => j.dni != dni);
+            disponibles.push(jug);
+        }
+        
+        estadoGlobal.rosterActivo = seleccionados; // Actualizamos el estado global para guardar
+        renderizarListas(disponibles, seleccionados);
+    }
+
+    // 5. Guardar Roster en la Base de Datos
+    async function guardarRoster() {
+        const btn = document.getElementById("btnGuardarRoster");
+        btn.innerText = "Guardando...";
+        
+        const dnisArray = estadoGlobal.rosterActivo.map(j => j.dni);
+        const jsonDnis = JSON.stringify(dnisArray);
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=guardarRoster&idEquipo=${estadoGlobal.idEquipoSeleccionado}&dnis=${encodeURIComponent(jsonDnis)}`);
+            const data = await res.json();
+            alert(data.mensaje || "Guardado exitosamente");
+            volverEquipos();
+        } catch (error) {
+            alert("Error al guardar.");
+        }
+        btn.innerText = "💾 Guardar Selección";
+    }
+
+    function volverEquipos() {
+        document.getElementById("rosterView").classList.add("hidden");
+        document.getElementById("equiposView").classList.remove("hidden");
+    }
+</script>
+
+<div class="max-w-md mx-auto">
+    <!-- VISTA 1: LOGIN -->
+    <div id="loginView" class="bg-white p-6 rounded-lg shadow-md text-center mt-10">
+        <h2 class="text-2xl font-bold text-gray-700 mb-4">Acceso de Personal</h2>
+        <input type="number" id="dniLogin" placeholder="Ingrese su DNI" class="w-full border p-2 rounded mb-4 text-center text-lg">
+        <button id="btnCargar" onclick="cargarEquipos()" class="bg-green-700 text-white w-full py-2 rounded text-lg font-bold">Ingresar</button>
+    </div>
+
+    <!-- VISTA 2: LISTA DE EQUIPOS -->
+    <div id="equiposView" class="hidden mt-6">
+        <h2 class="text-xl font-bold text-gray-700 mb-4">Mis Equipos</h2>
+        <div id="listaEquipos"></div>
+    </div>
+
+    <!-- VISTA 3: GESTIÓN DE ROSTER -->
+    <div id="rosterView" class="hidden mt-4 bg-white rounded-lg shadow-md p-4">
+        <div class="flex justify-between mb-4">
+            <button onclick="volverEquipos()" class="text-gray-500 font-bold">← Volver</button>
+            <h2 class="font-bold text-gray-700">Armar Selección</h2>
+        </div>
+
+        <div id="rosterLoader" class="text-center p-4">Cargando jugadores...</div>
+
+        <div id="listasRoster" class="hidden">
+            <div class="grid grid-cols-2 gap-2">
+                <!-- Columna Izquierda -->
+                <div class="border rounded bg-gray-50">
+                    <div class="bg-gray-200 text-center font-bold text-xs p-2">Disponibles</div>
+                    <div id="colDisponibles" class="overflow-y-auto h-96"></div>
+                </div>
+                <!-- Columna Derecha -->
+                <div class="border rounded bg-green-50">
+                    <div class="bg-green-200 text-center font-bold text-xs p-2">Convocados</div>
+                    <div id="colSeleccionados" class="overflow-y-auto h-96"></div>
+                </div>
+            </div>
+            <button id="btnGuardarRoster" onclick="guardarRoster()" class="mt-4 w-full bg-blue-600 text-white py-3 rounded font-bold">💾 Guardar Selección</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
