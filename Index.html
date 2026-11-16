@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión Deportiva</title>
+    <!-- Tailwind CSS por CDN para prototipado rápido -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .custom-bg { background-color: var(--color-principal, #1e40af); }
+        .custom-text { color: var(--color-secundario, #facc15); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- Header Dinámico -->
+    <header id="app-header" class="custom-bg text-white p-4 shadow-md flex justify-between items-center hidden">
+        <div class="flex items-center gap-3">
+            <img id="colegio-logo" src="" alt="Logo" class="h-10 w-10 object-contain bg-white rounded-full p-1 hidden">
+            <h1 id="colegio-nombre" class="text-xl font-bold custom-text">Plataforma Deportiva</h1>
+        </div>
+        <button onclick="cerrarSesion()" class="text-sm underline">Cerrar Sesión</button>
+    </header>
+
+    <main class="p-4 max-w-5xl mx-auto">
+        <!-- Pantalla de Login Simple -->
+        <div id="login-view" class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-md mt-20">
+            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Acceso del Personal</h2>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">DNI del Usuario</label>
+                <input id="dni-login" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: 12345678">
+            </div>
+            <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2">ID Colegio</label>
+                <input id="id-colegio-login" type="text" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: COL-001">
+            </div>
+            <button onclick="iniciarSesion()" class="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">Ingresar</button>
+            <p id="login-error" class="text-red-500 text-sm text-center mt-3 hidden">Datos incorrectos.</p>
+        </div>
+
+        <!-- Pantalla de Equipos (Dashboard) -->
+        <div id="dashboard-view" class="hidden mt-8">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Mis Equipos</h2>
+            <div id="grid-equipos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Se inyectan las cards desde JS -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Variables globales
+        let currentDni = '';
+        let currentColegio = '';
+
+        function iniciarSesion() {
+            const dni = document.getElementById('dni-login').value;
+            const idCol = document.getElementById('id-colegio-login').value;
+            if(!dni || !idCol) return;
+            
+            // 1. Cargar Branding
+            google.script.run.withSuccessHandler(res => {
+                document.documentElement.style.setProperty('--color-principal', res.colorPrincipal);
+                document.documentElement.style.setProperty('--color-secundario', res.colorSecundario);
+                document.getElementById('colegio-nombre').innerText = res.nombre;
+                if(res.logoUrl) {
+                    const logo = document.getElementById('colegio-logo');
+                    logo.src = res.logoUrl;
+                    logo.classList.remove('hidden');
+                }
+                document.getElementById('app-header').classList.remove('hidden');
+                
+                // 2. Cargar Equipos
+                currentDni = dni; currentColegio = idCol;
+                cargarEquipos();
+
+            }).withFailureHandler(err => {
+                document.getElementById('login-error').innerText = err.message;
+                document.getElementById('login-error').classList.remove('hidden');
+            }).getConfiguracionColegio(idCol);
+        }
+
+        function cargarEquipos() {
+            google.script.run.withSuccessHandler(equipos => {
+                document.getElementById('login-view').classList.add('hidden');
+                document.getElementById('dashboard-view').classList.remove('hidden');
+                
+                const grid = document.getElementById('grid-equipos');
+                grid.innerHTML = '';
+                equipos.forEach(eq => {
+                    grid.innerHTML += `
+                        <div class="bg-white p-5 rounded-lg shadow border-l-4 border-blue-500 hover:shadow-lg transition cursor-pointer" onclick="abrirRoster('${eq.idEquipo}')">
+                            <h3 class="text-lg font-bold text-gray-800">${eq.nombreEquipo}</h3>
+                            <p class="text-sm text-gray-500 mt-1">Grados: ${eq.gradosPermitidos}</p>
+                            <p class="text-xs text-gray-400 mt-3">Profesor a cargo: ${eq.dniProfesorAsignado}</p>
+                        </div>
+                    `;
+                });
+            }).obtenerEquiposPorRol(currentDni);
+        }
+
+        function abrirRoster(idEquipo) {
+            alert("Aquí abriremos la vista de 'Armar Selección' para el equipo: " + idEquipo);
+            // Lógica de drag & drop para el roster pendiente de implementación
+        }
+
+        function cerrarSesion() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>
