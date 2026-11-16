@@ -2,120 +2,101 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <!-- Evitar zoom indeseado al tocar rápido los botones en móviles -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Registro en Vivo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Registro de Partido - Padre</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Optimizaciones para táctil */
-        button { touch-action: manipulation; }
-        .btn-evento { transition: transform 0.1s; }
-        .btn-evento:active { transform: scale(0.95); }
-    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col">
+<body class="bg-gray-100 p-2">
 
-    <!-- Cronómetro Superior -->
-    <header class="bg-gray-800 p-4 text-center shadow-lg sticky top-0 z-50">
-        <h1 class="text-gray-400 text-sm font-bold uppercase tracking-wider mb-1">Tiempo de Juego</h1>
-        <div class="text-5xl font-mono font-bold text-green-400" id="cronometro">00:00</div>
-        <div class="mt-4 flex justify-center gap-4">
-            <button onclick="iniciarCronometro()" class="bg-green-600 px-6 py-2 rounded-full font-bold">Iniciar</button>
-            <button onclick="pausarCronometro()" class="bg-yellow-600 px-6 py-2 rounded-full font-bold">Pausa</button>
-        </div>
-    </header>
+<script>
+    // 👇 PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT 👇
+    const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
 
-    <!-- Selector de Jugador -->
-    <div class="p-4 flex-1">
-        <label class="block text-gray-300 text-sm mb-2">Seleccione al jugador involucrado:</label>
-        <select id="selector-jugador" class="w-full bg-gray-700 text-white p-4 rounded-xl mb-6 text-lg focus:outline-none">
-            <option value="">-- Seleccionar Jugador --</option>
-            <!-- Opciones cargadas por JS -->
-        </select>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
 
-        <!-- Botonera de Eventos (Grandes y claros para el celular) -->
-        <div class="grid grid-cols-2 gap-4">
-            <button onclick="registrar('Gol')" class="btn-evento bg-blue-600 hover:bg-blue-500 p-6 rounded-xl flex flex-col items-center shadow-lg">
-                <span class="text-4xl mb-2">⚽</span>
-                <span class="font-bold text-lg">Gol A Favor</span>
-            </button>
+    window.onload = async function() {
+        if(!token) {
+            document.getElementById("status").innerHTML = "❌ Token no encontrado en el enlace.";
+            return;
+        }
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=validarToken&token=${token}`);
+            const data = await res.json();
             
-            <button onclick="registrar('Sustitucion_Entra')" class="btn-evento bg-indigo-600 hover:bg-indigo-500 p-6 rounded-xl flex flex-col items-center shadow-lg">
-                <span class="text-4xl mb-2">🔄</span>
-                <span class="font-bold text-lg">Cambio (Entra)</span>
-            </button>
+            if(data.valido) {
+                document.getElementById("loader").classList.add("hidden");
+                document.getElementById("panelJuego").classList.remove("hidden");
+            } else {
+                document.getElementById("status").innerHTML = "❌ Partido finalizado o enlace incorrecto.";
+            }
+        } catch (error) {
+            document.getElementById("status").innerHTML = "Error de conexión.";
+        }
+    };
 
-            <button onclick="registrar('Tarjeta Amarilla')" class="btn-evento bg-yellow-500 hover:bg-yellow-400 p-6 rounded-xl flex flex-col items-center shadow-lg text-gray-900">
-                <span class="text-4xl mb-2">🟨</span>
-                <span class="font-bold text-lg">T. Amarilla</span>
-            </button>
+    async function registrar(tipo) {
+        const dni = document.getElementById("inputDni").value;
+        const minuto = document.getElementById("inputMinuto").value;
 
-            <button onclick="registrar('Tarjeta Roja')" class="btn-evento bg-red-600 hover:bg-red-500 p-6 rounded-xl flex flex-col items-center shadow-lg">
-                <span class="text-4xl mb-2">🟥</span>
-                <span class="font-bold text-lg">T. Roja</span>
-            </button>
-        </div>
-        
-        <div id="estado-mensaje" class="mt-6 text-center text-sm font-bold text-green-400 h-6"></div>
+        if(!dni || !minuto) {
+            alert("Por favor ingrese el Minuto y el DNI del jugador.");
+            return;
+        }
+
+        const msgDiv = document.getElementById("notificacion");
+        msgDiv.innerText = "Enviando...";
+        msgDiv.classList.remove("hidden", "text-green-600", "text-red-600");
+        msgDiv.classList.add("text-blue-600");
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=registrarEvento&token=${token}&minuto=${minuto}&tipoEvento=${tipo}&dniJugador=${dni}`);
+            const data = await res.json();
+            
+            if(data.exito) {
+                msgDiv.innerText = `✅ ${tipo} registrado correctamente al min ${minuto}.`;
+                msgDiv.classList.replace("text-blue-600", "text-green-600");
+                // Limpiar inputs
+                document.getElementById("inputDni").value = "";
+            } else {
+                msgDiv.innerText = "❌ Error: " + (data.error || "Desconocido");
+                msgDiv.classList.replace("text-blue-600", "text-red-600");
+            }
+        } catch (error) {
+            msgDiv.innerText = "❌ Error de conexión.";
+            msgDiv.classList.replace("text-blue-600", "text-red-600");
+        }
+    }
+</script>
+
+<div class="max-w-sm mx-auto mt-4 text-center">
+    <h1 class="text-2xl font-bold text-gray-800 mb-2">⚽ Registro en Vivo</h1>
+    
+    <div id="loader" class="bg-white p-4 rounded shadow text-lg font-bold text-gray-500">
+        <span id="status">Validando enlace del encuentro...</span>
     </div>
 
-    <script>
-        // El token viene desde el backend vía Scriptlets, aquí lo leemos
-        const TOKEN = "<?= token ?>"; 
-        
-        let segundos = 0;
-        let intervalo = null;
-
-        // Carga inicial
-        window.onload = function() {
-            google.script.run.withSuccessHandler(jugadores => {
-                const select = document.getElementById('selector-jugador');
-                jugadores.forEach(j => {
-                    select.innerHTML += `<option value="${j.dni}">${j.nombre}</option>`;
-                });
-            }).obtenerJugadoresEncuentro(TOKEN);
-        };
-
-        // Lógica del Cronómetro
-        function actualizarPantalla() {
-            let m = Math.floor(segundos / 60).toString().padStart(2, '0');
-            let s = (segundos % 60).toString().padStart(2, '0');
-            document.getElementById('cronometro').innerText = `${m}:${s}`;
-        }
-        
-        function iniciarCronometro() {
-            if(!intervalo) intervalo = setInterval(() => { segundos++; actualizarPantalla(); }, 1000);
-        }
-        
-        function pausarCronometro() {
-            clearInterval(intervalo);
-            intervalo = null;
-        }
-
-        // Enviar datos
-        function registrar(tipoEvento) {
-            const dni = document.getElementById('selector-jugador').value;
-            const minuto = Math.floor(segundos / 60);
+    <div id="panelJuego" class="hidden">
+        <div class="bg-white p-4 rounded-lg shadow-md mb-4 text-left">
+            <label class="block text-gray-700 font-bold mb-1">DNI del Jugador Involucrado:</label>
+            <input type="number" id="inputDni" placeholder="Ej. 70123456" class="w-full border p-3 rounded mb-3 text-xl text-center">
             
-            if(!dni) {
-                alert("Por favor seleccione un jugador primero.");
-                return;
-            }
+            <label class="block text-gray-700 font-bold mb-1">Minuto del partido:</label>
+            <input type="number" id="inputMinuto" placeholder="Ej. 15" class="w-full border p-3 rounded mb-2 text-xl text-center">
+        </div>
 
-            const msg = document.getElementById('estado-mensaje');
-            msg.innerText = "Registrando...";
-            msg.className = "mt-6 text-center text-sm font-bold text-yellow-400 h-6";
+        <div class="grid grid-cols-2 gap-3">
+            <button onclick="registrar('Gol')" class="bg-green-500 text-white font-bold py-6 rounded-lg text-2xl shadow active:bg-green-600">⚽ GOL</button>
+            <button onclick="registrar('Asistencia')" class="bg-blue-500 text-white font-bold py-6 rounded-lg text-xl shadow active:bg-blue-600">👟 P. Gol</button>
+            <button onclick="registrar('Amarilla')" class="bg-yellow-400 text-yellow-900 font-bold py-6 rounded-lg text-xl shadow active:bg-yellow-500">🟨 Amarilla</button>
+            <button onclick="registrar('Roja')" class="bg-red-600 text-white font-bold py-6 rounded-lg text-xl shadow active:bg-red-700">🟥 Roja</button>
+            <button onclick="registrar('Entra')" class="bg-gray-700 text-white font-bold py-4 rounded-lg text-lg shadow active:bg-gray-800 col-span-2">🔄 Cambio (Entra a Cancha)</button>
+        </div>
 
-            google.script.run.withSuccessHandler(() => {
-                msg.innerText = `${tipoEvento} registrado en el minuto ${minuto}!`;
-                msg.className = "mt-6 text-center text-sm font-bold text-green-400 h-6";
-                document.getElementById('selector-jugador').value = ''; // Resetear selector
-                setTimeout(() => msg.innerText = "", 3000);
-            }).withFailureHandler(err => {
-                msg.innerText = "Error: " + err.message;
-                msg.className = "mt-6 text-center text-sm font-bold text-red-500 h-6";
-            }).registrarEventoEnVivo(TOKEN, minuto, tipoEvento, dni);
-        }
-    </script>
+        <div id="notificacion" class="mt-4 font-bold text-lg hidden"></div>
+    </div>
+</div>
+
 </body>
 </html>
