@@ -3,98 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Registro de Partido - Padre</title>
+    <title>Mesa de Control - En Vivo</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Desactivar selecciones de texto accidentales al tocar rápido en el celular */
+        body { -webkit-user-select: none; user-select: none; }
+        .foto-jugador { object-fit: cover; aspect-ratio: 1/1; }
+    </style>
 </head>
-<body class="bg-gray-100 p-2">
+<body class="bg-slate-900 text-white min-h-screen">
 
 <script>
     // 👇 PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT 👇
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
-
+    
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    
+    let jugadoresGlobal = [];
+    let cronometroInterval;
+    let segundosPartido = 0;
+    let jugadorSeleccionadoParaEvento = null;
 
     window.onload = async function() {
-        if(!token) {
-            document.getElementById("status").innerHTML = "❌ Token no encontrado en el enlace.";
-            return;
-        }
-
+        if(!token) { alert("Sin token."); return; }
         try {
-            const res = await fetch(`${URL_BACKEND}?action=validarToken&token=${token}`);
+            // Cargar jugadores
+            const res = await fetch(`${URL_BACKEND}?action=obtenerConvocados&token=${token}`);
             const data = await res.json();
+            jugadoresGlobal = data.jugadores.map(j => ({...j, estado: 'Banca'})); // Por defecto todos a la banca
             
-            if(data.valido) {
-                document.getElementById("loader").classList.add("hidden");
-                document.getElementById("panelJuego").classList.remove("hidden");
-            } else {
-                document.getElementById("status").innerHTML = "❌ Partido finalizado o enlace incorrecto.";
-            }
-        } catch (error) {
-            document.getElementById("status").innerHTML = "Error de conexión.";
-        }
+            document.getElementById("loader").classList.add("hidden");
+            renderizarPrevia();
+        } catch (e) { alert("Error de conexión"); }
     };
 
-    async function registrar(tipo) {
-        const dni = document.getElementById("inputDni").value;
-        const minuto = document.getElementById("inputMinuto").value;
+    // --- FASE 1: ARMAR TITULARES ---
+    function renderizarPrevia() {
+        document.getElementById("fasePrevia").classList.remove("hidden");
+        let html = "";
+        jugadoresGlobal.forEach((j, index) => {
+            const bgClass = j.estado === 'Titular' ? 'bg-green-600 border-green-400' : 'bg-slate-700 border-slate-600';
+            html += `
+            <div onclick="toggleTitular(${index})" class="border-2 rounded-lg overflow-hidden relative cursor-pointer ${bgClass} transition-colors">
+                <span class="absolute top-0 left-0 bg-black bg-opacity-70 text-white font-bold px-2 py-1 text-lg rounded-br-lg">${j.camiseta}</span>
+                <img src="${j.fotoUrl}" class="w-full foto-jugador">
+                <div class="text-center font-bold py-1 text-sm bg-black bg-opacity-50 truncate px-1">${j.nombre}</div>
+                <div class="text-center text-xs font-bold py-1 uppercase tracking-wider">${j.estado}</div>
+            </div>`;
+        });
+        document.getElementById("gridPrevia").innerHTML = html;
+    }
 
-        if(!dni || !minuto) {
-            alert("Por favor ingrese el Minuto y el DNI del jugador.");
-            return;
-        }
+    function toggleTitular(index) {
+        jugadoresGlobal[index].estado = jugadoresGlobal[index].estado === 'Titular' ? 'Banca' : 'Titular';
+        renderizarPrevia();
+    }
 
-        const msgDiv = document.getElementById("notificacion");
-        msgDiv.innerText = "Enviando...";
-        msgDiv.classList.remove("hidden", "text-green-600", "text-red-600");
-        msgDiv.classList.add("text-blue-600");
+    async function iniciarPartido() {
+        // Enviar alineación a BD (opcional)
+        document.getElementById("btnIniciar").innerText = "Iniciando...";
+        await fetch(`${URL_BACKEND}?action=guardarAlineacion&token=${token}&datos=${encodeURIComponent(JSON.stringify(jugadoresGlobal))}`);
+        
+        // Cambiar vista
+        document.getElementById("fasePrevia").classList.add("hidden");
+        document.getElementById("faseEnVivo").classList.remove("hidden");
+        renderizarEnVivo();
+        
+        // Arrancar cronómetro
+        cronometroInterval = setInterval(() => {
+            segundosPartido++;
+            let m = Math.floor(segundosPartido / 60).toString().padStart(2, '0');
+            let s = (segundosPartido % 60).toString().padStart(2, '0');
+            document.getElementById("cronoTexto").innerText = `${m}:${s}`;
+        }, 1000);
+    }
+
+    // --- FASE 2: EN VIVO ---
+    function renderizarEnVivo() {
+        // Ordenamos: Titulares primero
+        let ordenados = [...jugadoresGlobal].sort((a,b) => a.estado === 'Titular' ? -1 : 1);
+        
+        let html = "";
+        ordenados.forEach(j => {
+            const opacidad = j.estado === 'Banca' ? 'opacity-50' : 'opacity-100';
+            html += `
+            <div onclick="abrirModalEvento('${j.dni}', '${j.nombre}')" class="border border-slate-700 rounded-lg overflow-hidden relative cursor-pointer bg-slate-800 ${opacidad}">
+                <span class="absolute top-0 left-0 bg-black text-white font-bold px-2 py-1 text-sm rounded-br-lg">${j.camiseta}</span>
+                <img src="${j.fotoUrl}" class="w-full foto-jugador">
+                <div class="text-center font-bold py-1 text-xs truncate px-1">${j.nombre}</div>
+            </div>`;
+        });
+        document.getElementById("gridEnVivo").innerHTML = html;
+    }
+
+    function abrirModalEvento(dni, nombre) {
+        jugadorSeleccionadoParaEvento = dni;
+        document.getElementById("nombreJugadorModal").innerText = nombre;
+        document.getElementById("modalEvento").classList.remove("hidden");
+    }
+
+    function cerrarModal() {
+        document.getElementById("modalEvento").classList.add("hidden");
+        jugadorSeleccionadoParaEvento = null;
+    }
+
+    async function enviarEvento(tipoEvento) {
+        if(!jugadorSeleccionadoParaEvento) return;
+        
+        // Calculamos el minuto exacto del cronómetro (ej. Segundo 65 = Minuto 2)
+        const minutoActual = Math.floor(segundosPartido / 60) + 1; 
+        
+        document.getElementById("estadoGuardado").innerText = "Guardando...";
+        document.getElementById("estadoGuardado").classList.remove("hidden");
 
         try {
-            const res = await fetch(`${URL_BACKEND}?action=registrarEvento&token=${token}&minuto=${minuto}&tipoEvento=${tipo}&dniJugador=${dni}`);
-            const data = await res.json();
+            await fetch(`${URL_BACKEND}?action=registrarEvento&token=${token}&minuto=${minutoActual}&tipoEvento=${tipoEvento}&dniJugador=${jugadorSeleccionadoParaEvento}`);
+            document.getElementById("estadoGuardado").innerText = `✅ ${tipoEvento} min ${minutoActual}`;
             
-            if(data.exito) {
-                msgDiv.innerText = `✅ ${tipo} registrado correctamente al min ${minuto}.`;
-                msgDiv.classList.replace("text-blue-600", "text-green-600");
-                // Limpiar inputs
-                document.getElementById("inputDni").value = "";
-            } else {
-                msgDiv.innerText = "❌ Error: " + (data.error || "Desconocido");
-                msgDiv.classList.replace("text-blue-600", "text-red-600");
+            // Si es cambio, actualizamos visualmente
+            if(tipoEvento === 'Entra' || tipoEvento === 'Sale') {
+                let j = jugadoresGlobal.find(x => x.dni == jugadorSeleccionadoParaEvento);
+                if(j) j.estado = tipoEvento === 'Entra' ? 'Titular' : 'Banca';
+                renderizarEnVivo();
             }
-        } catch (error) {
-            msgDiv.innerText = "❌ Error de conexión.";
-            msgDiv.classList.replace("text-blue-600", "text-red-600");
+
+            setTimeout(cerrarModal, 1500);
+        } catch (e) {
+            document.getElementById("estadoGuardado").innerText = "❌ Error al guardar";
         }
     }
 </script>
 
-<div class="max-w-sm mx-auto mt-4 text-center">
-    <h1 class="text-2xl font-bold text-gray-800 mb-2">⚽ Registro en Vivo</h1>
+<div class="max-w-md mx-auto p-4">
     
-    <div id="loader" class="bg-white p-4 rounded shadow text-lg font-bold text-gray-500">
-        <span id="status">Validando enlace del encuentro...</span>
+    <!-- LOADER INICIAL -->
+    <div id="loader" class="text-center mt-20 text-xl font-bold animate-pulse">
+        Cargando Convocatoria...
     </div>
 
-    <div id="panelJuego" class="hidden">
-        <div class="bg-white p-4 rounded-lg shadow-md mb-4 text-left">
-            <label class="block text-gray-700 font-bold mb-1">DNI del Jugador Involucrado:</label>
-            <input type="number" id="inputDni" placeholder="Ej. 70123456" class="w-full border p-3 rounded mb-3 text-xl text-center">
-            
-            <label class="block text-gray-700 font-bold mb-1">Minuto del partido:</label>
-            <input type="number" id="inputMinuto" placeholder="Ej. 15" class="w-full border p-3 rounded mb-2 text-xl text-center">
+    <!-- FASE 1: ARMAR TITULARES -->
+    <div id="fasePrevia" class="hidden">
+        <h1 class="text-xl font-bold text-center mb-1">Armar Alineación</h1>
+        <p class="text-slate-400 text-center text-sm mb-4">Toca la foto para marcar como Titular</p>
+        
+        <div id="gridPrevia" class="grid grid-cols-3 gap-3 mb-6">
+            <!-- Renderizado dinámico -->
+        </div>
+
+        <button id="btnIniciar" onclick="iniciarPartido()" class="w-full bg-green-500 text-white font-bold py-4 rounded-xl text-xl shadow-[0_4px_14px_0_rgba(34,197,94,0.39)] uppercase tracking-wide mb-8">
+            ⚽ Iniciar Partido
+        </button>
+    </div>
+
+    <!-- FASE 2: CRONÓMETRO Y EVENTOS -->
+    <div id="faseEnVivo" class="hidden">
+        
+        <!-- Sticky Header Cronómetro -->
+        <div class="sticky top-0 z-10 bg-slate-900 pt-2 pb-4 border-b border-slate-700 mb-4 flex justify-between items-center">
+            <div>
+                <div class="text-xs text-slate-400 uppercase font-bold tracking-widest">En Vivo</div>
+                <div class="text-sm font-bold">Registro de Sucesos</div>
+            </div>
+            <div id="cronoTexto" class="text-4xl font-black text-green-400 font-mono tracking-tighter shadow-green-900">
+                00:00
+            </div>
+        </div>
+
+        <p class="text-slate-400 text-center text-sm mb-4">Toca un jugador para registrar evento</p>
+        
+        <div id="gridEnVivo" class="grid grid-cols-4 gap-2 pb-10">
+            <!-- Renderizado dinámico -->
+        </div>
+    </div>
+
+</div>
+
+<!-- MODAL OVERLAY PARA REGISTRO RÁPIDO DE EVENTOS -->
+<div id="modalEvento" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-end justify-center pb-6 px-4">
+    <div class="bg-slate-800 w-full max-w-md rounded-2xl p-4 shadow-2xl relative border border-slate-600">
+        
+        <button onclick="cerrarModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-xl">&times;</button>
+        
+        <h2 id="nombreJugadorModal" class="text-2xl font-bold text-center mb-6 text-white truncate px-6">Jugador</h2>
+        
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <button onclick="enviarEvento('Gol')" class="bg-green-500 text-white py-6 rounded-xl text-xl font-bold active:scale-95 transition-transform shadow-lg shadow-green-900/50">⚽ GOL</button>
+            <button onclick="enviarEvento('Asistencia')" class="bg-blue-500 text-white py-6 rounded-xl text-lg font-bold active:scale-95 transition-transform shadow-lg shadow-blue-900/50">👟 P. Gol</button>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <button onclick="enviarEvento('Amarilla')" class="bg-yellow-500 text-yellow-900 py-4 rounded-xl font-bold active:scale-95 transition-transform">🟨 Amarilla</button>
+            <button onclick="enviarEvento('Roja')" class="bg-red-600 text-white py-4 rounded-xl font-bold active:scale-95 transition-transform">🟥 Roja</button>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
-            <button onclick="registrar('Gol')" class="bg-green-500 text-white font-bold py-6 rounded-lg text-2xl shadow active:bg-green-600">⚽ GOL</button>
-            <button onclick="registrar('Asistencia')" class="bg-blue-500 text-white font-bold py-6 rounded-lg text-xl shadow active:bg-blue-600">👟 P. Gol</button>
-            <button onclick="registrar('Amarilla')" class="bg-yellow-400 text-yellow-900 font-bold py-6 rounded-lg text-xl shadow active:bg-yellow-500">🟨 Amarilla</button>
-            <button onclick="registrar('Roja')" class="bg-red-600 text-white font-bold py-6 rounded-lg text-xl shadow active:bg-red-700">🟥 Roja</button>
-            <button onclick="registrar('Entra')" class="bg-gray-700 text-white font-bold py-4 rounded-lg text-lg shadow active:bg-gray-800 col-span-2">🔄 Cambio (Entra a Cancha)</button>
+            <button onclick="enviarEvento('Entra')" class="bg-slate-600 text-white py-3 rounded-xl font-bold active:scale-95 transition-transform text-sm">🔄 Entra</button>
+            <button onclick="enviarEvento('Sale')" class="bg-slate-700 text-slate-300 py-3 rounded-xl font-bold active:scale-95 transition-transform text-sm">⬇️ Sale</button>
         </div>
 
-        <div id="notificacion" class="mt-4 font-bold text-lg hidden"></div>
+        <div id="estadoGuardado" class="hidden text-center text-green-400 font-bold mt-4 animate-bounce"></div>
     </div>
 </div>
 
