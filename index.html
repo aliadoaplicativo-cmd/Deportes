@@ -9,7 +9,6 @@
 <body class="bg-gray-100 p-4">
 
 <script>
-    // TU URL DE APPS SCRIPT
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
     const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html"; 
 
@@ -36,9 +35,7 @@
             if (data.rol === 'Coordinador') {
                 cargarMenuCoordinador();
             } else if (data.rol === 'Profesor') {
-                alert("Flujo de Profesor (Oculto temporalmente en este código base para enfocarnos en el Coordinador)");
-            } else {
-                throw new Error("Rol no reconocido.");
+                alert("Flujo de Profesor (Ingresa con un DNI de coordinador para probar este panel)");
             }
         } catch (error) { 
             alert(error.message); 
@@ -47,7 +44,7 @@
     }
 
     // ==========================================
-    // 1. MENÚ PRINCIPAL COORDINADOR (BOTONES DE EQUIPOS)
+    // 1. MENÚ PRINCIPAL COORDINADOR
     // ==========================================
     async function cargarMenuCoordinador() {
         document.getElementById("coordinadorMainView").classList.remove("hidden");
@@ -56,8 +53,7 @@
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerPanelCoordinador&idColegio=${estadoGlobal.idColegio}`);
             const data = await res.json();
-            
-            estadoGlobal.seleccionesCoordinador = data.selecciones; // Guardamos en memoria
+            estadoGlobal.seleccionesCoordinador = data.selecciones;
             
             let htmlBotones = "";
             data.selecciones.forEach(sel => {
@@ -88,12 +84,10 @@
         document.getElementById("coordinadorMainView").classList.add("hidden");
         document.getElementById("dashboardEquipoView").classList.remove("hidden");
         
-        // Renderizar Cabecera
         document.getElementById("dashNombreEquipo").innerText = sel.nombreEquipo;
         document.getElementById("dashCategoriaEquipo").innerText = sel.categoria;
         document.getElementById("dashNombreDT").innerText = sel.profesor;
         
-        // Renderizar botón de Whatsapp si tiene número
         if (sel.telefonoWsp) {
             document.getElementById("dashWspDT").innerHTML = `
                 <a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center hover:bg-green-200 transition">
@@ -103,7 +97,6 @@
             document.getElementById("dashWspDT").innerHTML = "";
         }
 
-        // Actualizar contadores en los botones
         document.getElementById("badgeJugadores").innerText = sel.totalJugadores;
         document.getElementById("badgeEncuentros").innerText = sel.totalEncuentros;
     }
@@ -114,21 +107,20 @@
     }
 
     // ==========================================
-    // 3. NAVEGACIÓN A MÓDULOS ESPECÍFICOS
+    // 3. NAVEGACIÓN Y CARGA DE MÓDULOS ESPECÍFICOS
     // ==========================================
     function abrirModulo(moduloID) {
         document.getElementById("dashboardEquipoView").classList.add("hidden");
         
-        // Ocultar todos los módulos primero
-        document.getElementById("moduloJugadores").classList.add("hidden");
-        document.getElementById("moduloEncuentros").classList.add("hidden");
-        document.getElementById("moduloAsistencia").classList.add("hidden");
-        document.getElementById("moduloDT").classList.add("hidden");
+        ['moduloJugadores', 'moduloEncuentros', 'moduloAsistencia', 'moduloDT'].forEach(id => {
+            document.getElementById(id).classList.add("hidden");
+        });
         
-        // Mostrar el seleccionado
         document.getElementById(moduloID).classList.remove("hidden");
         
-        // Aquí mañana agregaremos la lógica para cargar los datos de cada módulo (fetch)
+        // Llamar a la BD dependiendo del módulo
+        if (moduloID === 'moduloJugadores') cargarModuloJugadores();
+        if (moduloID === 'moduloDT') cargarModuloDT();
     }
 
     function cerrarModulo(moduloID) {
@@ -136,6 +128,82 @@
         document.getElementById("dashboardEquipoView").classList.remove("hidden");
     }
 
+    // --- LÓGICA MÓDULO: JUGADORES ---
+    async function cargarModuloJugadores() {
+        const contenedor = document.getElementById("listaJugadoresModulo");
+        contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 animate-pulse my-10'>Cargando plantilla...</p>";
+        
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const data = await res.json();
+            
+            if(!data.jugadores || data.jugadores.length === 0) {
+                contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Aún no hay jugadores en esta selección.</p>";
+                return;
+            }
+
+            let html = "";
+            data.jugadores.forEach(j => {
+                html += `
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+                    <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span>
+                    <img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100">
+                    <div class="p-3 text-center">
+                        <p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p>
+                        <p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p>
+                    </div>
+                </div>`;
+            });
+            contenedor.innerHTML = html;
+        } catch(e) { contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
+    }
+
+    // --- LÓGICA MÓDULO: AJUSTES / DT ---
+    async function cargarModuloDT() {
+        const sel = document.getElementById("selNuevoDT");
+        sel.innerHTML = "<option value=''>Cargando profesores...</option>";
+        
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerProfesores&idColegio=${estadoGlobal.idColegio}`);
+            const data = await res.json();
+            
+            let html = "<option value=''>Seleccione un Profesor...</option>";
+            data.profesores.forEach(p => {
+                html += `<option value="${p.dni}">${p.nombre}</option>`;
+            });
+            sel.innerHTML = html;
+        } catch(e) { sel.innerHTML = "<option value=''>Error al cargar</option>"; }
+    }
+
+    function guardarNuevoDT() {
+        const dniProfesor = document.getElementById("selNuevoDT").value;
+        if(!dniProfesor) return alert("Debe seleccionar un profesor.");
+
+        const btn = document.getElementById("btnGuardarDT");
+        btn.innerText = "Guardando..."; btn.disabled = true;
+
+        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
+        window[callbackName] = function(data) {
+            if(data.exito) {
+                // Actualizar la memoria local para no tener que recargar todo
+                const equipoInfo = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado);
+                const profeNombre = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text;
+                equipoInfo.profesor = profeNombre; 
+                
+                alert("Entrenador asignado con éxito");
+                cerrarModulo('moduloDT');
+                abrirDashboardEquipo(estadoGlobal.idEquipoSeleccionado); // Recargar la vista del dashboard localmente
+            } else {
+                alert("Error al actualizar");
+            }
+            btn.innerText = "Guardar Cambios"; btn.disabled = false;
+            delete window[callbackName];
+        };
+
+        const scriptGuardar = document.createElement('script');
+        scriptGuardar.src = `${URL_BACKEND}?action=asignarProfesorEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&dniProfesor=${encodeURIComponent(dniProfesor)}&callback=${callbackName}`;
+        document.body.appendChild(scriptGuardar);
+    }
 </script>
 
 <div class="max-w-md mx-auto relative min-h-screen pb-16">
@@ -149,9 +217,7 @@
         <button id="btnCargar" onclick="iniciarSesion()" class="bg-slate-800 text-white w-full py-4 rounded-xl text-lg font-bold hover:bg-slate-900 shadow-lg transition">Ingresar al Panel</button>
     </div>
 
-    <!-- ============================================== -->
-    <!-- PANTALLA 1: MENÚ PRINCIPAL DEL COORDINADOR -->
-    <!-- ============================================== -->
+    <!-- 1. MENÚ PRINCIPAL DEL COORDINADOR -->
     <div id="coordinadorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
             <div class="flex justify-between items-center mb-2">
@@ -166,19 +232,13 @@
             <h3 class="font-bold text-slate-800 text-lg">Selecciones</h3>
             <button class="text-xs bg-green-100 text-green-700 font-bold px-3 py-2 rounded-lg hover:bg-green-200 transition">+ Nueva</button>
         </div>
-        
-        <div id="contenedorSelecciones" class="px-4">
-            <!-- Botones de equipos renderizados por JS -->
-        </div>
+        <div id="contenedorSelecciones" class="px-4"></div>
     </div>
 
 
-    <!-- ============================================== -->
-    <!-- PANTALLA 2: DASHBOARD DE UN EQUIPO -->
-    <!-- ============================================== -->
+    <!-- 2. DASHBOARD DE UN EQUIPO -->
     <div id="dashboardEquipoView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
         
-        <!-- Header -->
         <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
             <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
@@ -189,7 +249,6 @@
         </div>
 
         <div class="p-4">
-            <!-- Tarjeta Info Entrenador -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-5 flex justify-between items-center">
                 <div class="flex items-center gap-3">
                     <div class="bg-slate-100 p-3 rounded-full text-2xl">👔</div>
@@ -201,29 +260,29 @@
                 <div id="dashWspDT"></div>
             </div>
 
-            <!-- Botones de Módulos (Navegación Nivel 2) -->
+            <!-- Botones de Módulos con Iconos Grandes -->
             <div class="grid grid-cols-2 gap-3">
                 
-                <button onclick="abrirModulo('moduloJugadores')" class="bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl p-5 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
-                    <span class="text-3xl mb-2">🏃‍♂️</span>
+                <button onclick="abrirModulo('moduloJugadores')" class="bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl p-6 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
+                    <span class="text-4xl mb-3 drop-shadow-sm">🏃‍♂️</span>
                     <span class="text-sm font-bold text-blue-900">Jugadores</span>
                     <span id="badgeJugadores" class="text-xs bg-blue-200 text-blue-800 px-3 rounded-full mt-2 font-bold">0</span>
                 </button>
                 
-                <button onclick="abrirModulo('moduloEncuentros')" class="bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl p-5 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
-                    <span class="text-3xl mb-2">⚽</span>
+                <button onclick="abrirModulo('moduloEncuentros')" class="bg-green-50 hover:bg-green-100 border border-green-200 rounded-2xl p-6 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
+                    <span class="text-4xl mb-3 drop-shadow-sm">⚽</span>
                     <span class="text-sm font-bold text-green-900">Encuentros</span>
                     <span id="badgeEncuentros" class="text-xs bg-green-200 text-green-800 px-3 rounded-full mt-2 font-bold">0</span>
                 </button>
                 
-                <button onclick="abrirModulo('moduloAsistencia')" class="bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl p-5 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
-                    <span class="text-3xl mb-2">📋</span>
+                <button onclick="abrirModulo('moduloAsistencia')" class="bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl p-6 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
+                    <span class="text-4xl mb-3 drop-shadow-sm">📋</span>
                     <span class="text-sm font-bold text-amber-900">Asistencia</span>
                 </button>
 
-                <button onclick="abrirModulo('moduloDT')" class="bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl p-5 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
-                    <span class="text-3xl mb-2">⚙️</span>
-                    <span class="text-sm font-bold text-purple-900">Ajustes / DT</span>
+                <button onclick="abrirModulo('moduloDT')" class="bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-2xl p-6 flex flex-col items-center justify-center transition active:scale-95 shadow-sm">
+                    <span class="text-4xl mb-3 drop-shadow-sm">⚙️</span>
+                    <span class="text-sm font-bold text-purple-900">Cambiar DT</span>
                 </button>
             </div>
         </div>
@@ -231,50 +290,57 @@
 
 
     <!-- ============================================== -->
-    <!-- 3. MÓDULOS ESPECÍFICOS (PANTALLAS EN BLANCO) -->
+    <!-- 3. MÓDULOS ESPECÍFICOS -->
     <!-- ============================================== -->
 
-    <!-- Módulo Jugadores -->
-    <div id="moduloJugadores" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
-        <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
-            <h2 class="font-bold">🏃‍♂️ Roster de Jugadores</h2>
+    <!-- Módulo 1: Jugadores -->
+    <div id="moduloJugadores" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-30 flex justify-between items-center">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏃‍♂️</span> Jugadores</h2>
             <button onclick="cerrarModulo('moduloJugadores')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
-        <div class="p-4 text-center mt-10">
-            <p class="text-slate-500">Aquí diseñaremos la lista de alumnos mañana.</p>
+        <div class="p-4">
+            <div id="listaJugadoresModulo" class="grid grid-cols-2 gap-3">
+                <!-- Se llena con las cards de los jugadores -->
+            </div>
         </div>
     </div>
 
-    <!-- Módulo Encuentros -->
+    <!-- Módulo 2: Encuentros (Próximamente) -->
     <div id="moduloEncuentros" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
         <div class="bg-green-600 text-white p-4 shadow-md flex justify-between items-center">
-            <h2 class="font-bold">⚽ Historial de Encuentros</h2>
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Historial de Encuentros</h2>
             <button onclick="cerrarModulo('moduloEncuentros')" class="text-green-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-4 text-center mt-10">
-            <p class="text-slate-500">Aquí diseñaremos la lista de partidos y estadísticas mañana.</p>
+            <p class="text-slate-500">Aquí diseñaremos la lista de partidos.</p>
         </div>
     </div>
 
-    <!-- Módulo Asistencia -->
+    <!-- Módulo 3: Asistencia (Próximamente) -->
     <div id="moduloAsistencia" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
         <div class="bg-amber-500 text-white p-4 shadow-md flex justify-between items-center">
-            <h2 class="font-bold">📋 Control de Asistencia</h2>
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📋</span> Control de Asistencia</h2>
             <button onclick="cerrarModulo('moduloAsistencia')" class="text-amber-100 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-4 text-center mt-10">
-            <p class="text-slate-500">Aquí diseñaremos la tabla de checks de asistencia mañana.</p>
+            <p class="text-slate-500">Aquí diseñaremos la tabla de asistencia.</p>
         </div>
     </div>
 
-    <!-- Módulo Ajustes/DT -->
+    <!-- Módulo 4: Ajustes/DT -->
     <div id="moduloDT" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
         <div class="bg-purple-600 text-white p-4 shadow-md flex justify-between items-center">
-            <h2 class="font-bold">⚙️ Ajustes del Equipo</h2>
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚙️</span> Cambiar Entrenador</h2>
             <button onclick="cerrarModulo('moduloDT')" class="text-purple-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
-        <div class="p-4 text-center mt-10">
-            <p class="text-slate-500">Aquí pondremos la opción para asignar/cambiar al profesor a cargo.</p>
+        <div class="p-5 mt-4">
+            <p class="text-sm text-slate-500 mb-4">Seleccione al profesor de su colegio que estará a cargo de esta selección:</p>
+            
+            <label class="block text-xs font-bold text-purple-600 uppercase mb-2">Nuevo Entrenador (DT)</label>
+            <select id="selNuevoDT" class="w-full border-2 border-slate-300 p-3 rounded-xl mb-6 bg-slate-50 outline-none focus:border-purple-500 font-bold text-slate-700"></select>
+
+            <button id="btnGuardarDT" onclick="guardarNuevoDT()" class="w-full bg-purple-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-purple-700">💾 Guardar Cambios</button>
         </div>
     </div>
 
