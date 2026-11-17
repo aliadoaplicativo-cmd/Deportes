@@ -11,11 +11,11 @@
 <script>
     // 👇 PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT 👇
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
-    const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html"; // Tu link para padres
+    const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html"; 
 
     let estadoGlobal = { idColegio: "", idEquipoSeleccionado: "", rosterActivo: [], dnisConvocados: [] };
 
-    // 1. Cargar Equipos
+    // --- FLUJO 1: LOGIN Y EQUIPOS ---
     async function cargarEquipos() {
         const dni = document.getElementById("dniLogin").value;
         if (!dni) return alert("Ingrese su DNI");
@@ -35,7 +35,7 @@
                         <h3 class="font-black text-xl text-slate-800">${eq.nombreEquipo}</h3>
                         <p class="text-sm text-slate-500 mb-3">${eq.gradosPermitidos}</p>
                         <div class="grid grid-cols-2 gap-2">
-                            <button onclick="abrirRoster('${eq.idEquipo}', '${eq.gradosPermitidos}')" class="bg-slate-200 text-slate-700 font-bold py-2 rounded text-sm hover:bg-slate-300">📋 Roster Base</button>
+                            <button onclick="alert('Función Roster Base (ya implementada previamente)')" class="bg-slate-200 text-slate-700 font-bold py-2 rounded text-sm hover:bg-slate-300">📋 Roster Base</button>
                             <button onclick="abrirProgramacion('${eq.idEquipo}')" class="bg-green-600 text-white font-bold py-2 rounded text-sm hover:bg-green-700 shadow shadow-green-200">⚽ Nuevo Partido</button>
                         </div>
                     </div>`;
@@ -47,31 +47,37 @@
         document.getElementById("btnCargar").innerText = "Ingresar";
     }
 
-    // --- FLUJO: PROGRAMAR ENCUENTRO ---
+    // --- FLUJO 2: PROGRAMAR ENCUENTRO ---
     async function abrirProgramacion(idEquipo) {
         document.getElementById("equiposView").classList.add("hidden");
         document.getElementById("programarView").classList.remove("hidden");
         document.getElementById("formProgramacion").classList.add("hidden");
         document.getElementById("loaderProgramar").classList.remove("hidden");
         document.getElementById("pantallaExito").classList.add("hidden");
+        
         estadoGlobal.idEquipoSeleccionado = idEquipo;
         estadoGlobal.dnisConvocados = [];
+        
+        // Reset campos
+        document.getElementById("txtRival").value = "";
+        document.getElementById("txtFecha").value = "";
+        document.getElementById("txtFechaConvocatoria").value = "";
+        document.getElementById("txtLugar").value = "";
+        document.getElementById("txtDireccion").value = "";
 
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerDatosProgramacion&idEquipo=${idEquipo}&idColegio=${estadoGlobal.idColegio}`);
             const data = await res.json();
             
-            // Llenar Campeonatos
             let options = "<option value=''>Seleccione Campeonato...</option>";
             data.campeonatos.forEach(c => options += `<option value="${c.id}">${c.nombre}</option>`);
             document.getElementById("selCampeonato").innerHTML = options;
 
-            // Llenar Lista Jugadores (Checkboxes)
             let htmlJugadores = "";
             data.plantilla.forEach(j => {
                 htmlJugadores += `
                 <label class="flex items-center p-2 border rounded bg-white shadow-sm cursor-pointer hover:bg-slate-50">
-                    <input type="checkbox" value="${j.dni}" class="check-jugador w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)">
+                    <input type="checkbox" value="${j.dni}" class="w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)">
                     <div>
                         <div class="font-bold text-slate-700">${j.nombre}</div>
                         <div class="text-xs text-slate-400">Camiseta: ${j.camiseta}</div>
@@ -85,22 +91,38 @@
         } catch (error) { alert("Error: " + error); }
     }
 
-    function toggleConvocado(checkbox) {
-        if(checkbox.checked) {
-            estadoGlobal.dnisConvocados.push(checkbox.value);
-        } else {
-            estadoGlobal.dnisConvocados = estadoGlobal.dnisConvocados.filter(dni => dni !== checkbox.value);
+    // Calcular Convocatoria (-30 min) automáticamente
+    function calcularConvocatoria() {
+        const fechaPartidoStr = document.getElementById("txtFecha").value;
+        if(fechaPartidoStr) {
+            let fecha = new Date(fechaPartidoStr);
+            fecha.setMinutes(fecha.getMinutes() - 30);
+            
+            // Formatear de vuelta a datetime-local (YYYY-MM-DDThh:mm)
+            const pad = (n) => n < 10 ? '0'+n : n;
+            const res = `${fecha.getFullYear()}-${pad(fecha.getMonth()+1)}-${pad(fecha.getDate())}T${pad(fecha.getHours())}:${pad(fecha.getMinutes())}`;
+            
+            document.getElementById("txtFechaConvocatoria").value = res;
         }
+    }
+
+    function toggleConvocado(checkbox) {
+        if(checkbox.checked) estadoGlobal.dnisConvocados.push(checkbox.value);
+        else estadoGlobal.dnisConvocados = estadoGlobal.dnisConvocados.filter(dni => dni !== checkbox.value);
         document.getElementById("contadorConvocados").innerText = estadoGlobal.dnisConvocados.length;
     }
 
+    // --- FLUJO 3: GUARDAR Y NOTIFICAR ---
     async function guardarEncuentro() {
         const idCamp = document.getElementById("selCampeonato").value;
         const rival = document.getElementById("txtRival").value;
         const fecha = document.getElementById("txtFecha").value;
+        const fechaConv = document.getElementById("txtFechaConvocatoria").value;
+        const lugar = document.getElementById("txtLugar").value;
+        const dir = document.getElementById("txtDireccion").value;
 
-        if(!idCamp || !rival || !fecha || estadoGlobal.dnisConvocados.length === 0) {
-            return alert("Complete campeonato, rival, fecha y seleccione al menos 1 jugador.");
+        if(!idCamp || !rival || !fecha || !fechaConv || !lugar || estadoGlobal.dnisConvocados.length === 0) {
+            return alert("Por favor complete todos los campos y seleccione al menos 1 jugador.");
         }
 
         const btn = document.getElementById("btnGuardarEncuentro");
@@ -108,19 +130,41 @@
         btn.disabled = true;
 
         try {
-            const res = await fetch(`${URL_BACKEND}?action=guardarEncuentro&idEquipo=${estadoGlobal.idEquipoSeleccionado}&idCampeonato=${idCamp}&rival=${rival}&fechaPartido=${fecha}&dnisConvocados=${JSON.stringify(estadoGlobal.dnisConvocados)}`);
-            const data = await res.json();
+            // 1. Guardar Encuentro
+            const resGuardar = await fetch(`${URL_BACKEND}?action=guardarEncuentro&idEquipo=${estadoGlobal.idEquipoSeleccionado}&idCampeonato=${idCamp}&rival=${rival}&fechaPartido=${fecha}&fechaConvocatoria=${fechaConv}&lugar=${lugar}&direccion=${dir}&dnisConvocados=${JSON.stringify(estadoGlobal.dnisConvocados)}`);
+            const dataGuardar = await resGuardar.json();
             
-            if(data.exito) {
+            if(dataGuardar.exito) {
                 document.getElementById("formProgramacion").classList.add("hidden");
                 document.getElementById("pantallaExito").classList.remove("hidden");
                 
-                const link = `${URL_GITHUB}?token=${data.token}`;
-                document.getElementById("linkGenerado").value = link;
+                const linkPartido = `${URL_GITHUB}?token=${dataGuardar.token}`;
+                document.getElementById("linkGenerado").value = linkPartido;
                 
-                // Preparar botón WhatsApp
-                const msg = encodeURIComponent(`Hola padres! El encuentro contra ${rival} está programado para el ${fecha}. Pueden seguir/registrar el partido aquí: ${link}`);
-                document.getElementById("btnWhatsApp").href = `https://wa.me/?text=${msg}`;
+                // 2. Traer links de WhatsApp personalizados para los padres convocados
+                document.getElementById("listaWhatsappPadres").innerHTML = "<p class='text-sm text-slate-500'>Generando mensajes de WhatsApp...</p>";
+                
+                const resWsp = await fetch(`${URL_BACKEND}?action=generarMensajesPadres&token=${dataGuardar.token}&rival=${rival}&fechaPartido=${fecha}&fechaConvocatoria=${fechaConv}&lugar=${lugar}&direccion=${dir}&dnisConvocados=${JSON.stringify(estadoGlobal.dnisConvocados)}`);
+                const dataWsp = await resWsp.json();
+                
+                let htmlWsp = "";
+                if(dataWsp.mensajes && dataWsp.mensajes.length > 0) {
+                    dataWsp.mensajes.forEach(msg => {
+                        htmlWsp += `
+                        <a href="${msg.linkWsp}" target="_blank" class="flex justify-between items-center bg-white border p-3 rounded-lg shadow-sm mb-2 hover:border-green-500 hover:shadow-md transition">
+                            <div class="text-left">
+                                <div class="font-bold text-slate-800">${msg.nombrePadre}</div>
+                                <div class="text-xs text-slate-500">Padre/Madre de ${msg.jugador}</div>
+                            </div>
+                            <div class="bg-[#25D366] text-white p-2 rounded-full shadow">
+                                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                            </div>
+                        </a>`;
+                    });
+                } else {
+                    htmlWsp = "<p class='text-sm text-red-500'>Ningún jugador convocado tiene padre con teléfono registrado.</p>";
+                }
+                document.getElementById("listaWhatsappPadres").innerHTML = htmlWsp;
             }
         } catch (error) { alert("Error de conexión"); }
         
@@ -135,8 +179,6 @@
         alert("Enlace copiado al portapapeles");
     }
 
-    // --- FLUJO: ROSTER (El que ya teníamos) ---
-    function abrirRoster(idEquipo, grados) { /* Igual al anterior */ alert("El código de Roster Base sigue aquí en tu versión completa."); }
     function volverEquipos() {
         document.getElementById("programarView").classList.add("hidden");
         document.getElementById("equiposView").classList.remove("hidden");
@@ -145,66 +187,100 @@
 
 <div class="max-w-md mx-auto">
     <!-- VISTA 1: LOGIN -->
-    <div id="loginView" class="bg-white p-6 rounded-lg shadow-md text-center mt-10">
+    <div id="loginView" class="bg-white p-6 rounded-lg shadow-md text-center mt-10 border border-slate-200">
         <h2 class="text-2xl font-bold text-gray-700 mb-4">Acceso Profesores</h2>
-        <input type="number" id="dniLogin" placeholder="Ingrese su DNI" class="w-full border p-2 rounded mb-4 text-center text-lg">
-        <button id="btnCargar" onclick="cargarEquipos()" class="bg-green-700 text-white w-full py-3 rounded text-lg font-bold">Ingresar</button>
+        <input type="number" id="dniLogin" placeholder="Ingrese su DNI" class="w-full border-2 border-slate-300 focus:border-green-500 outline-none p-3 rounded mb-4 text-center text-lg">
+        <button id="btnCargar" onclick="cargarEquipos()" class="bg-green-700 text-white w-full py-3 rounded text-lg font-bold hover:bg-green-800">Ingresar</button>
     </div>
 
     <!-- VISTA 2: LISTA DE EQUIPOS -->
     <div id="equiposView" class="hidden mt-6">
-        <h2 class="text-2xl font-black text-slate-800 mb-4">Mis Equipos</h2>
+        <h2 class="text-2xl font-black text-slate-800 mb-4 px-2">Mis Equipos</h2>
         <div id="listaEquipos"></div>
     </div>
 
     <!-- VISTA 3: PROGRAMAR ENCUENTRO -->
-    <div id="programarView" class="hidden mt-4 bg-white rounded-xl shadow-md p-4 border border-slate-200">
-        <div class="flex items-center mb-4 border-b pb-2">
-            <button onclick="volverEquipos()" class="text-slate-500 font-bold mr-4">← Volver</button>
-            <h2 class="font-bold text-lg text-slate-800">Programar Partido</h2>
+    <div id="programarView" class="hidden mt-4 bg-white rounded-xl shadow-md border border-slate-200 pb-4">
+        
+        <!-- Header -->
+        <div class="bg-slate-800 text-white p-4 rounded-t-xl flex justify-between items-center mb-4">
+            <h2 class="font-bold text-lg">Programar Partido</h2>
+            <button onclick="volverEquipos()" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
         </div>
 
-        <div id="loaderProgramar" class="text-center p-4 text-slate-500">Cargando datos...</div>
+        <div id="loaderProgramar" class="text-center p-6 text-slate-500 animate-pulse">Cargando datos...</div>
 
-        <div id="formProgramacion" class="hidden">
+        <div id="formProgramacion" class="hidden px-5">
+            
             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Campeonato</label>
-            <select id="selCampeonato" class="w-full border p-2 rounded mb-3 bg-slate-50"></select>
+            <select id="selCampeonato" class="w-full border border-slate-300 p-2.5 rounded mb-4 bg-slate-50 outline-none focus:border-green-500"></select>
 
             <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Rival</label>
-            <input type="text" id="txtRival" placeholder="Ej. Colegio San Agustín" class="w-full border p-2 rounded mb-3">
+            <input type="text" id="txtRival" placeholder="Ej. Colegio San Agustín" class="w-full border border-slate-300 p-2.5 rounded mb-4 outline-none focus:border-green-500">
 
-            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Fecha y Hora</label>
-            <input type="datetime-local" id="txtFecha" class="w-full border p-2 rounded mb-4">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Día y Hora</label>
+                    <input type="datetime-local" id="txtFecha" onchange="calcularConvocatoria()" class="w-full border border-slate-300 p-2 rounded outline-none focus:border-green-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Citación</label>
+                    <input type="datetime-local" id="txtFechaConvocatoria" class="w-full border border-slate-300 p-2 rounded outline-none text-sm bg-yellow-50 focus:border-green-500">
+                </div>
+            </div>
 
-            <div class="flex justify-between items-end mb-2">
-                <label class="block text-xs font-bold text-slate-500 uppercase">Convocar Jugadores</label>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Lugar / Estadio</label>
+                    <input type="text" id="txtLugar" placeholder="Ej. Club Internacional" class="w-full border border-slate-300 p-2 rounded outline-none text-sm focus:border-green-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Ref. o Dirección</label>
+                    <input type="text" id="txtDireccion" placeholder="Ej. Av. Bolognesi" class="w-full border border-slate-300 p-2 rounded outline-none text-sm focus:border-green-500">
+                </div>
+            </div>
+
+            <div class="flex justify-between items-end mb-2 mt-6">
+                <label class="block text-xs font-bold text-slate-800 uppercase">Convocar Jugadores</label>
                 <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-bold"><span id="contadorConvocados">0</span> Seleccionados</span>
             </div>
             
-            <!-- Lista Checkboxes -->
-            <div id="listaJugadoresConvocar" class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto bg-slate-100 p-2 rounded mb-4 border inset-shadow">
+            <div id="listaJugadoresConvocar" class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto bg-slate-50 p-2 rounded mb-6 border border-slate-200">
             </div>
 
-            <button id="btnGuardarEncuentro" onclick="guardarEncuentro()" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-green-700">Programar y Generar Link</button>
+            <button id="btnGuardarEncuentro" onclick="guardarEncuentro()" class="w-full bg-green-600 text-white font-bold py-3 rounded-lg shadow shadow-green-200 hover:bg-green-700">💾 Programar y Generar Link</button>
         </div>
 
-        <!-- PANTALLA EXITO -->
-        <div id="pantallaExito" class="hidden text-center py-6">
-            <div class="text-5xl mb-4">✅</div>
-            <h3 class="font-bold text-xl mb-2 text-slate-800">Partido Programado</h3>
-            <p class="text-sm text-slate-500 mb-4">Comparte este enlace con los padres o delegados para el registro en vivo.</p>
+        <!-- PANTALLA EXITO & DELEGACIÓN -->
+        <div id="pantallaExito" class="hidden px-5 py-4">
             
-            <div class="flex mb-4">
-                <input type="text" id="linkGenerado" readonly class="w-full border p-2 rounded-l bg-slate-100 text-sm outline-none">
-                <button onclick="copiarLink()" class="bg-slate-700 text-white px-4 rounded-r font-bold">Copiar</button>
+            <div class="text-center mb-6">
+                <div class="text-5xl mb-3">✅</div>
+                <h3 class="font-black text-xl text-slate-800">Encuentro Registrado</h3>
+                <p class="text-sm text-slate-500">Los jugadores han sido guardados en el Roster del partido.</p>
+            </div>
+            
+            <div class="bg-slate-50 p-3 rounded border border-slate-200 mb-6">
+                <label class="block text-xs font-bold text-slate-800 uppercase mb-2">Delegar Mesa de Control (Opcional)</label>
+                <p class="text-xs text-slate-500 mb-3">Envíe el token de acceso a un Padre Delegado para que registre las estadísticas durante el partido:</p>
+                
+                <div class="flex mb-4">
+                    <input type="text" id="linkGenerado" readonly class="w-full border border-slate-300 p-2 rounded-l text-xs outline-none bg-white">
+                    <button onclick="copiarLink()" class="bg-slate-700 text-white px-3 rounded-r font-bold text-sm">Copiar</button>
+                </div>
+
+                <div class="border-t border-slate-200 pt-3">
+                    <p class="text-xs font-bold text-slate-700 mb-2">Enviar directamente por WhatsApp a:</p>
+                    <div id="listaWhatsappPadres" class="max-h-48 overflow-y-auto">
+                        <!-- Botones renderizados por JS -->
+                    </div>
+                </div>
             </div>
 
-            <a id="btnWhatsApp" target="_blank" class="block w-full bg-[#25D366] text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg">
-                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
-                Enviar por WhatsApp
-            </a>
+            <button onclick="volverEquipos()" class="w-full bg-slate-200 text-slate-700 font-bold py-3 rounded-lg hover:bg-slate-300">Finalizar</button>
         </div>
     </div>
 </div>
+
 </body>
 </html>
