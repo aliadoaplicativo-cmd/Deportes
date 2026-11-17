@@ -9,13 +9,12 @@
 <body class="bg-gray-100 p-4">
 
 <script>
-    // TU URL DE APPS SCRIPT INSERTADA CORRECTAMENTE
+    // TU URL DE APPS SCRIPT INSERTADA
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
     const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html"; 
 
     let estadoGlobal = { idColegio: "", idEquipoSeleccionado: "", rosterActivo: [], dnisConvocados: [] };
 
-    // --- FLUJO 1: LOGIN Y EQUIPOS ---
     async function cargarEquipos() {
         const dni = document.getElementById("dniLogin").value;
         if (!dni) return alert("Ingrese su DNI");
@@ -47,7 +46,6 @@
         document.getElementById("btnCargar").innerText = "Ingresar";
     }
 
-    // --- FLUJO 2: PROGRAMAR ENCUENTRO ---
     async function abrirProgramacion(idEquipo) {
         document.getElementById("equiposView").classList.add("hidden");
         document.getElementById("programarView").classList.remove("hidden");
@@ -58,7 +56,6 @@
         estadoGlobal.idEquipoSeleccionado = idEquipo;
         estadoGlobal.dnisConvocados = [];
         
-        // Reset campos
         document.getElementById("txtRival").value = "";
         document.getElementById("txtFecha").value = "";
         document.getElementById("txtFechaConvocatoria").value = "";
@@ -77,7 +74,7 @@
             data.plantilla.forEach(j => {
                 htmlJugadores += `
                 <label class="flex items-center p-2 border rounded bg-white shadow-sm cursor-pointer hover:bg-slate-50">
-                    <input type="checkbox" value="${j.dni}" class="w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)">
+                    <input type="checkbox" value="${j.dni}" class="check-jugador w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)">
                     <div>
                         <div class="font-bold text-slate-700">${j.nombre}</div>
                         <div class="text-xs text-slate-400">Camiseta: ${j.camiseta}</div>
@@ -96,7 +93,6 @@
         if(fechaPartidoStr) {
             let fecha = new Date(fechaPartidoStr);
             fecha.setMinutes(fecha.getMinutes() - 30);
-            
             const pad = (n) => n < 10 ? '0'+n : n;
             const res = `${fecha.getFullYear()}-${pad(fecha.getMonth()+1)}-${pad(fecha.getDate())}T${pad(fecha.getHours())}:${pad(fecha.getMinutes())}`;
             document.getElementById("txtFechaConvocatoria").value = res;
@@ -109,7 +105,6 @@
         document.getElementById("contadorConvocados").innerText = estadoGlobal.dnisConvocados.length;
     }
 
-    // --- FLUJO 3: GUARDAR Y NOTIFICAR (AHORA CON JSONP SEGURO) ---
     function guardarEncuentro() {
         const idCamp = document.getElementById("selCampeonato").value;
         const rival = document.getElementById("txtRival").value;
@@ -133,38 +128,32 @@
                 document.getElementById("formProgramacion").classList.add("hidden");
                 document.getElementById("pantallaExito").classList.remove("hidden");
                 
+                // Mostrar Link Privado para el padre voluntario
                 const linkPartido = `${URL_GITHUB}?token=${dataGuardar.token}`;
                 document.getElementById("linkGenerado").value = linkPartido;
                 
-                document.getElementById("listaWhatsappPadres").innerHTML = "<p class='text-sm text-slate-500'>Generando mensajes de WhatsApp...</p>";
-                
-                // Pedir mensajes de whatsapp
-                const callbackPadres = 'jsonpPadres_' + Math.round(100000 * Math.random());
-                window[callbackPadres] = function(dataWsp) {
-                    let htmlWsp = "";
-                    if(dataWsp.mensajes && dataWsp.mensajes.length > 0) {
-                        dataWsp.mensajes.forEach(msg => {
-                            htmlWsp += `
-                            <a href="${msg.linkWsp}" target="_blank" class="flex justify-between items-center bg-white border p-3 rounded-lg shadow-sm mb-2 hover:border-green-500 hover:shadow-md transition">
-                                <div class="text-left">
-                                    <div class="font-bold text-slate-800">${msg.nombrePadre}</div>
-                                    <div class="text-xs text-slate-500">Padre/Madre de ${msg.jugador}</div>
-                                </div>
-                                <div class="bg-[#25D366] text-white p-2 rounded-full shadow">
-                                    <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
-                                </div>
-                            </a>`;
-                        });
-                    } else {
-                        htmlWsp = "<p class='text-sm text-red-500'>Ningún jugador convocado tiene padre con teléfono registrado.</p>";
-                    }
-                    document.getElementById("listaWhatsappPadres").innerHTML = htmlWsp;
-                    delete window[callbackPadres];
+                // GENERAR MENSAJE PARA EL GRUPO DE WHATSAPP
+                let nombresConvocados = [];
+                document.querySelectorAll('.check-jugador:checked').forEach(chk => {
+                    nombresConvocados.push(chk.nextElementSibling.querySelector('.font-bold').innerText);
+                });
+
+                const formatDate = (dateStr) => {
+                    const d = new Date(dateStr);
+                    return d.toLocaleString('es-PE', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
                 };
 
-                const scriptWsp = document.createElement('script');
-                scriptWsp.src = `${URL_BACKEND}?action=generarMensajesPadres&token=${dataGuardar.token}&rival=${encodeURIComponent(rival)}&fechaPartido=${encodeURIComponent(fecha)}&fechaConvocatoria=${encodeURIComponent(fechaConv)}&lugar=${encodeURIComponent(lugar)}&direccion=${encodeURIComponent(dir)}&dnisConvocados=${encodeURIComponent(JSON.stringify(estadoGlobal.dnisConvocados))}&callback=${callbackPadres}`;
-                document.body.appendChild(scriptWsp);
+                let msgGrupo = `⚽ *CONVOCATORIA OFICIAL* ⚽\n\n*Rival:* ${rival}\n*Día y Hora:* ${formatDate(fecha)}\n*Hora de Citación:* ${formatDate(fechaConv)}\n*Lugar:* ${lugar}\n*Ref:* ${dir}\n\n*Jugadores Convocados:*\n`;
+                nombresConvocados.forEach(nombre => msgGrupo += `✅ ${nombre}\n`);
+                msgGrupo += `\n*Necesitamos apoyo:* ¿Algún padre voluntario para llevar las estadísticas en la Mesa de Control? Responda a este mensaje para enviarle el link y PIN de acceso privado.`;
+
+                let btnGrupo = `
+                <a href="https://wa.me/?text=${encodeURIComponent(msgGrupo)}" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-600 transition">
+                    <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                    Enviar al Grupo de WhatsApp
+                </a>`;
+                
+                document.getElementById("btnWhatsAppGrupo").innerHTML = btnGrupo;
 
             } else {
                 alert("Error al programar: " + (dataGuardar.error || "Desconocido"));
@@ -209,7 +198,6 @@
     <!-- VISTA 3: PROGRAMAR ENCUENTRO -->
     <div id="programarView" class="hidden mt-4 bg-white rounded-xl shadow-md border border-slate-200 pb-4">
         
-        <!-- Header -->
         <div class="bg-slate-800 text-white p-4 rounded-t-xl flex justify-between items-center mb-4">
             <h2 class="font-bold text-lg">Programar Partido</h2>
             <button onclick="volverEquipos()" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
@@ -267,24 +255,24 @@
                 <p class="text-sm text-slate-500">Los jugadores están listos en el Roster.</p>
             </div>
             
-            <!-- SECCIÓN 1: EL LINK PRIVADO (PIN) -->
+            <!-- SECCIÓN 1: CONVOCATORIA MASIVA -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 mb-6 shadow-sm">
+                <h4 class="font-bold text-slate-800 mb-1 flex items-center"><span class="text-xl mr-2">📢</span> Convocatoria General</h4>
+                <p class="text-xs text-slate-500 mb-3">Este mensaje incluye los datos del partido, la lista de los jugadores y pide un voluntario. <b>No incluye el link de la app.</b></p>
+                
+                <div id="btnWhatsAppGrupo" class="mt-2">
+                    <!-- Botón renderizado por JS -->
+                </div>
+            </div>
+
+            <!-- SECCIÓN 2: EL LINK PRIVADO (PIN) -->
             <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-6 shadow-sm">
                 <h4 class="font-bold text-blue-900 mb-1 flex items-center"><span class="text-xl mr-2">🔐</span> Link de Control (Privado)</h4>
-                <p class="text-xs text-blue-700 mb-3">Copia esto y envíaselo <b>solo</b> al padre que confirme que llevará las estadísticas.</p>
+                <p class="text-xs text-blue-700 mb-3">Copia esto y envíaselo <b>solo</b> al padre que responda al mensaje anterior confirmando su apoyo.</p>
                 
                 <div class="flex">
                     <input type="text" id="linkGenerado" readonly class="w-full border border-blue-300 p-2 rounded-l text-xs outline-none bg-white text-blue-900 font-mono">
                     <button onclick="copiarLink()" class="bg-blue-600 text-white px-4 rounded-r font-bold text-sm hover:bg-blue-700">Copiar</button>
-                </div>
-            </div>
-
-            <!-- SECCIÓN 2: CONVOCATORIAS MASIVAS -->
-            <div class="bg-white p-4 rounded-xl border border-slate-200 mb-6 shadow-sm">
-                <h4 class="font-bold text-slate-800 mb-1 flex items-center"><span class="text-xl mr-2">📢</span> Enviar Convocatorias</h4>
-                <p class="text-xs text-slate-500 mb-3">Estos mensajes no incluyen el link de control. Solo avisan del partido y piden voluntarios.</p>
-                
-                <div id="listaWhatsappPadres" class="max-h-60 overflow-y-auto pr-1">
-                    <!-- Botones renderizados por JS -->
                 </div>
             </div>
 
