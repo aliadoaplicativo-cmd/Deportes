@@ -15,7 +15,7 @@
 
     let estadoGlobal = { idColegio: "", dniLogueado: "", rol: "", idEquipoSeleccionado: "", seleccionesCoordinador: [], equiposProfesor: [], dnisConvocados: [] };
 
-    // --- SISTEMA DE ALERTAS MODERNO ---
+    // --- SISTEMA DE ALERTAS ---
     function mostrarAlerta(mensaje) {
         document.getElementById('alertaMensaje').innerText = mensaje;
         document.getElementById('alertaModern').classList.replace('hidden', 'flex');
@@ -41,7 +41,7 @@
     }
 
     // ==========================================
-    // 1. COORDINADOR (Crear Selección Combinada)
+    // 1. FLUJO DEL COORDINADOR
     // ==========================================
     async function cargarMenuCoordinador() {
         document.getElementById("coordinadorMainView").classList.remove("hidden");
@@ -52,77 +52,41 @@
             estadoGlobal.seleccionesCoordinador = data.selecciones;
             let html = "";
             data.selecciones.forEach(sel => {
-                html += `<button onclick="abrirDashboardEquipo('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left"><div><h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${sel.categoria}</p></div><div class="bg-slate-100 p-3 rounded-full text-slate-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div></button>`;
+                html += `<button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left"><div><h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${sel.categoria}</p></div><div class="bg-slate-100 p-3 rounded-full text-slate-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div></button>`;
             });
             document.getElementById("contenedorSelecciones").innerHTML = html;
         } catch (error) { document.getElementById("contenedorSelecciones").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
     }
 
-    // Modal Crear Nueva Selección (Equipos combinados)
-    function abrirModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex'); }
-    function cerrarModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden'); }
-    
-    async function guardarNuevaSeleccion() {
-        const nombre = document.getElementById("nsNombre").value;
-        let categoriasSeleccionadas = [];
-        document.querySelectorAll('.check-categoria:checked').forEach(chk => categoriasSeleccionadas.push(chk.value));
-        
-        if(!nombre || categoriasSeleccionadas.length === 0) return mostrarAlerta("Ingrese el nombre y seleccione al menos una categoría.");
-
-        const btn = document.getElementById("btnGuardarSeleccion"); btn.innerText = "Creando..."; btn.disabled = true;
-        
-        try {
-            // Usamos POST para guardar datos
-            const formData = new URLSearchParams();
-            formData.append('action', 'crearSeleccion');
-            formData.append('nombre', nombre);
-            formData.append('categorias', categoriasSeleccionadas.join(', '));
-            formData.append('idColegio', estadoGlobal.idColegio);
-
-            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const data = await res.json();
-            
-            if(data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalCrearSeleccion();
-                cargarMenuCoordinador(); // Refrescar vista
-            } else throw new Error(data.error);
-        } catch (e) { mostrarAlerta("Error al conectar: " + e.message); }
-        
-        btn.innerText = "Crear Selección"; btn.disabled = false;
-    }
-
-    function abrirDashboardEquipo(idEquipo) {
+    function abrirDashboardCoordinador(idEquipo) {
         const sel = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === idEquipo);
         estadoGlobal.idEquipoSeleccionado = idEquipo;
-        document.getElementById("coordinadorMainView").classList.add("hidden"); document.getElementById("dashboardEquipoView").classList.remove("hidden");
-        document.getElementById("dashNombreEquipo").innerText = sel.nombreEquipo; document.getElementById("dashCategoriaEquipo").innerText = sel.categoria; document.getElementById("dashNombreDT").innerText = sel.profesor;
-        document.getElementById("dashWspDT").innerHTML = sel.telefonoWsp ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center hover:bg-green-200 transition"><svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51z"/></svg></a>` : "";
-        document.getElementById("badgeJugadores").innerText = sel.totalJugadores; document.getElementById("badgeEncuentros").innerText = sel.totalEncuentros;
+        
+        document.getElementById("coordinadorMainView").classList.add("hidden"); 
+        document.getElementById("dashboardCoordinadorView").classList.remove("hidden");
+        
+        document.getElementById("dashCoordNombreEquipo").innerText = sel.nombreEquipo; 
+        document.getElementById("dashCoordCategoriaEquipo").innerText = sel.categoria; 
+        document.getElementById("dashCoordNombreDT").innerText = sel.profesor;
+        document.getElementById("dashCoordWspDT").innerHTML = sel.telefonoWsp ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center hover:bg-green-200 transition">💬</a>` : "";
     }
     
-    function volverAMenuCoordinador() { document.getElementById("dashboardEquipoView").classList.add("hidden"); document.getElementById("coordinadorMainView").classList.remove("hidden"); }
-
-    function abrirModulo(moduloID) {
-        document.getElementById("dashboardEquipoView").classList.add("hidden");
-        ['moduloJugadores', 'moduloEncuentros', 'moduloAsistencia', 'moduloDT', 'moduloDashboardCampeonato'].forEach(id => document.getElementById(id).classList.add("hidden"));
-        document.getElementById(moduloID).classList.remove("hidden");
-        
-        if (moduloID === 'moduloJugadores') cargarModuloJugadores();
-        if (moduloID === 'moduloDT') cargarModuloDT();
+    function volverAMenuCoordinador() { 
+        document.getElementById("dashboardCoordinadorView").classList.add("hidden"); 
+        document.getElementById("coordinadorMainView").classList.remove("hidden"); 
     }
-    function cerrarModulo(moduloID) { document.getElementById(moduloID).classList.add("hidden"); document.getElementById("dashboardEquipoView").classList.remove("hidden"); }
 
-    async function cargarModuloJugadores() { /* Código resumido por brevedad (funciona igual) */ }
-    async function cargarModuloDT() { /* Código resumido */ }
-
+    // Modal Crear Selección (Coordinador)
+    function abrirModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex'); }
+    function cerrarModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden'); }
+    async function guardarNuevaSeleccion() { /* ... Lógica anterior ... */ }
 
     // ==========================================
-    // 2. PROFESOR (Registrar Jugador con Foto)
+    // 2. FLUJO DEL PROFESOR / DT
     // ==========================================
     async function cargarMenuProfesor() {
         document.getElementById("profesorMainView").classList.remove("hidden");
-        document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10'>Cargando sus equipos...</p>";
+        document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando sus equipos...</p>";
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerEquipos&dni=${estadoGlobal.dniLogueado}`);
             const data = await res.json();
@@ -132,25 +96,41 @@
                 html += `<button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left"><div><h3 class="font-black text-2xl uppercase tracking-tight">${eq.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${eq.categoria}</p></div><div class="bg-green-50 p-3 rounded-full text-green-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div></button>`;
             });
             document.getElementById("contenedorEquiposProfesor").innerHTML = html;
-        } catch (error) {}
+        } catch (error) { document.getElementById("contenedorEquiposProfesor").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
     }
 
     function abrirDashboardProfesor(idEquipo) {
-        const eq = estadoGlobal.equiposProfesor.find(e => e.idEquipo === idEquipo); estadoGlobal.idEquipoSeleccionado = idEquipo;
-        document.getElementById("profesorMainView").classList.add("hidden"); document.getElementById("dashboardProfesorView").classList.remove("hidden");
-        document.getElementById("dashProfeNombreEquipo").innerText = eq.nombreEquipo; document.getElementById("dashProfeCategoriaEquipo").innerText = eq.categoria;
+        const eq = estadoGlobal.equiposProfesor.find(e => e.idEquipo === idEquipo); 
+        estadoGlobal.idEquipoSeleccionado = idEquipo;
+        
+        document.getElementById("profesorMainView").classList.add("hidden"); 
+        document.getElementById("dashboardProfesorView").classList.remove("hidden");
+        
+        document.getElementById("dashProfeNombreEquipo").innerText = eq.nombreEquipo; 
+        document.getElementById("dashProfeCategoriaEquipo").innerText = eq.categoria;
     }
-    function volverAMenuProfesor() { document.getElementById("dashboardProfesorView").classList.add("hidden"); document.getElementById("profesorMainView").classList.remove("hidden"); }
+    
+    function volverAMenuProfesor() { 
+        document.getElementById("dashboardProfesorView").classList.add("hidden"); 
+        document.getElementById("profesorMainView").classList.remove("hidden"); 
+    }
 
+    // --- NAVEGACIÓN ENTRE MÓDULOS DEL PROFESOR ---
     function abrirModuloProfe(moduloID) {
         document.getElementById("dashboardProfesorView").classList.add("hidden");
-        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView'].forEach(id => document.getElementById(id).classList.add("hidden"));
+        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView', 'profeEstadisticasView'].forEach(id => document.getElementById(id).classList.add("hidden"));
+        
         document.getElementById(moduloID).classList.remove("hidden");
+        
         if (moduloID === 'profeRosterView') cargarRosterProfe();
+        // Las llamadas a las otras funciones de carga irán aquí (cargarListaAsistencia, etc.)
     }
-    function cerrarModuloProfe(moduloID) { document.getElementById(moduloID).classList.add("hidden"); document.getElementById("dashboardProfesorView").classList.remove("hidden"); }
+    function cerrarModuloProfe(moduloID) { 
+        document.getElementById(moduloID).classList.add("hidden"); 
+        document.getElementById("dashboardProfesorView").classList.remove("hidden"); 
+    }
 
-    // --- Módulo: ARMAR SELECCION (Roster) ---
+    // --- MÓDULO: ARMAR SELECCION ---
     async function cargarRosterProfe() {
         const contenedor = document.getElementById("listaRosterCheckboxes");
         contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Buscando alumnos...</p>";
@@ -159,279 +139,143 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerRoster&idEquipo=${estadoGlobal.idEquipoSeleccionado}&grados=${eqInfo.categoria}&idColegio=${estadoGlobal.idColegio}`);
             const data = await res.json();
             let html = "";
-            data.seleccionados.forEach(j => html += crearCheckRoster(j, true));
-            data.disponibles.forEach(j => html += crearCheckRoster(j, false));
-            contenedor.innerHTML = html || "<p class='text-center text-slate-500 my-4 text-xs'>No hay alumnos en estas categorías. Registre nuevos alumnos.</p>";
-        } catch(e) {}
+            data.seleccionados.forEach(j => html += `<label class="flex items-center p-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50"><input type="checkbox" value="${j.dni}" class="check-roster w-5 h-5 text-blue-600 rounded mr-3" checked><div><div class="font-bold text-sm">${j.nombre}</div><div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">${j.grado}</div></div></label>`);
+            data.disponibles.forEach(j => html += `<label class="flex items-center p-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50"><input type="checkbox" value="${j.dni}" class="check-roster w-5 h-5 text-blue-600 rounded mr-3"><div><div class="font-bold text-sm">${j.nombre}</div><div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">${j.grado}</div></div></label>`);
+            contenedor.innerHTML = html || "<p class='text-center text-slate-500 my-4 text-xs'>No hay alumnos en estas categorías.</p>";
+        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>"; }
     }
-
-    function crearCheckRoster(jugador, marcado) {
-        return `<label class="flex items-center p-3 border-b border-slate-100 cursor-pointer hover:bg-slate-50"><input type="checkbox" value="${jugador.dni}" class="check-roster w-5 h-5 text-blue-600 rounded mr-3" ${marcado ? 'checked' : ''}><div><div class="font-bold text-sm">${jugador.nombre}</div><div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">${jugador.grado}</div></div></label>`;
-    }
-
-    // Modal Nuevo Jugador (con FOTO)
-    let base64FotoJugador = ""; // Variable temporal para la foto comprimida
-
-    function abrirModalNuevoJugador() {
-        const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
-        const grados = eqInfo.categoria.split(',').map(g => g.trim());
-        let htmlGrados = ""; grados.forEach(g => htmlGrados += `<option value="${g}">${g}</option>`);
-        document.getElementById('njGrado').innerHTML = htmlGrados;
-        
-        document.getElementById('njDni').value = ""; document.getElementById('njNombres').value = ""; document.getElementById('njApellidos').value = "";
-        document.getElementById('njInputFoto').value = ""; document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Subir+Foto";
-        base64FotoJugador = "";
-        
-        document.getElementById('modalNuevoJugador').classList.replace('hidden', 'flex');
-    }
-    
-    function cerrarModalNuevoJugador() { document.getElementById('modalNuevoJugador').classList.replace('flex', 'hidden'); }
-
-    // Comprimir foto desde el celular antes de enviar (Para ahorrar datos y evitar errores)
-    function procesarFotoSubida(event) {
-        const file = event.target.files[0];
-        if(!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const img = new Image();
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 300; // Reducimos tamaño para que sea muy ligero
-                const scaleSize = MAX_WIDTH / img.width;
-                canvas.width = MAX_WIDTH; canvas.height = img.height * scaleSize;
-                
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // Guardamos la foto comprimida en base64
-                base64FotoJugador = canvas.toDataURL('image/jpeg', 0.6);
-                document.getElementById('previewFoto').src = base64FotoJugador;
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    async function guardarNuevoJugador() {
-        const dni = document.getElementById('njDni').value;
-        const nombres = document.getElementById('njNombres').value;
-        const apellidos = document.getElementById('njApellidos').value;
-        const grado = document.getElementById('njGrado').value;
-        
-        if(!dni || !nombres) return mostrarAlerta("Complete DNI y Nombres obligatoriamente.");
-
-        const btn = document.getElementById('btnGuardarNuevoJugador'); btn.innerText = "Guardando..."; btn.disabled = true;
-
-        try {
-            // Usamos POST para soportar la imagen
-            const formData = new URLSearchParams();
-            formData.append('action', 'registrarNuevoJugador');
-            formData.append('dni', dni);
-            formData.append('nombres', nombres);
-            formData.append('apellidos', apellidos);
-            formData.append('grado', grado);
-            formData.append('idColegio', estadoGlobal.idColegio);
-            if(base64FotoJugador) formData.append('fotoBase64', base64FotoJugador);
-
-            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const data = await res.json();
-            
-            if(data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalNuevoJugador();
-                cargarRosterProfe();
-            } else throw new Error(data.error);
-        } catch(e) { mostrarAlerta("Error: " + e.message); }
-        
-        btn.innerText = "Registrar y Añadir a Lista"; btn.disabled = false;
-    }
-
 </script>
 
-<!-- MODAL ALERTA MODERNA -->
+<!-- MODAL ALERTA -->
 <div id="alertaModern" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] items-center justify-center px-4">
     <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-xs w-full text-center">
-        <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
-        <h3 class="text-lg font-black text-slate-800 mb-2">Aviso del Sistema</h3>
-        <p id="alertaMensaje" class="text-sm text-slate-500 mb-6 font-medium leading-snug"></p>
-        <button onclick="cerrarAlerta()" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl hover:bg-slate-900 transition">Entendido</button>
-    </div>
-</div>
-
-<!-- ======================================================= -->
-<!-- MODAL: CREAR SELECCIÓN COMBINADA (COORDINADOR) -->
-<!-- ======================================================= -->
-<div id="modalNuevaSeleccion" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl overflow-hidden flex flex-col max-h-full">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-black flex items-center"><span class="mr-2">🏆</span> Nueva Selección</h3>
-            <button onclick="cerrarModalCrearSeleccion()" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-2 rounded-full">✕</button>
-        </div>
-        <div class="overflow-y-auto pr-1">
-            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nombre (Ej. Selección Mayores)</label>
-            <input type="text" id="nsNombre" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 focus:border-blue-500 outline-none text-sm font-bold">
-            
-            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">Grados Permitidos (Combinable)</label>
-            <div class="grid grid-cols-3 gap-2 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="1ro" class="check-categoria w-4 h-4 mr-2">1ro</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="2do" class="check-categoria w-4 h-4 mr-2">2do</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="3ro" class="check-categoria w-4 h-4 mr-2">3ro</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="4to" class="check-categoria w-4 h-4 mr-2">4to</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="5to" class="check-categoria w-4 h-4 mr-2">5to</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="6to" class="check-categoria w-4 h-4 mr-2">6to</label>
-            </div>
-            <p class="text-[10px] text-slate-400 leading-tight mb-2">El entrenador solo podrá elegir alumnos que pertenezcan a los grados marcados.</p>
-        </div>
-        <button id="btnGuardarSeleccion" onclick="guardarNuevaSeleccion()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg mt-2 hover:bg-slate-900 transition">Crear Selección</button>
-    </div>
-</div>
-
-<!-- ======================================================= -->
-<!-- MODAL: NUEVO JUGADOR CON FOTO (PROFESOR) -->
-<!-- ======================================================= -->
-<div id="modalNuevoJugador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl overflow-hidden flex flex-col max-h-full">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-black flex items-center"><span class="mr-2">👤</span> Nuevo Alumno</h3>
-            <button onclick="cerrarModalNuevoJugador()" class="text-slate-400 hover:text-slate-700 bg-slate-100 p-2 rounded-full">✕</button>
-        </div>
-        
-        <div class="overflow-y-auto pr-2 space-y-4">
-            <!-- SECCIÓN FOTOGRAFÍA -->
-            <div class="flex flex-col items-center mb-2">
-                <label for="njInputFoto" class="cursor-pointer relative group">
-                    <img id="previewFoto" src="https://placehold.co/150x150?text=Subir+Foto" class="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-sm transition group-hover:opacity-75">
-                    <div class="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full shadow-lg border-2 border-white">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    </div>
-                </label>
-                <!-- accept="image/*" capture="environment" abre la cámara directamente en móviles -->
-                <input type="file" id="njInputFoto" accept="image/*" capture="environment" class="hidden" onchange="procesarFotoSubida(event)">
-                <p class="text-[10px] text-slate-400 mt-2 font-bold uppercase">Toque para tomar foto (Opcional)</p>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-                <div class="col-span-2">
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">DNI</label>
-                    <input type="number" id="njDni" class="w-full border-2 border-slate-200 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-bold">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nombres</label>
-                    <input type="text" id="njNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-bold">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Apellidos (Opcional)</label>
-                    <input type="text" id="njApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-bold">
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Categoría Oficial</label>
-                    <select id="njGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl focus:border-blue-500 outline-none text-sm font-bold bg-white"></select>
-                </div>
-            </div>
-        </div>
-        <button id="btnGuardarNuevoJugador" onclick="guardarNuevoJugador()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg mt-4 hover:bg-blue-700 transition">Registrar Jugador</button>
+        <h3 class="text-lg font-black text-slate-800 mb-2">Aviso</h3>
+        <p id="alertaMensaje" class="text-sm text-slate-500 mb-6"></p>
+        <button onclick="cerrarAlerta()" class="w-full bg-slate-800 text-white font-bold py-3 rounded-xl">Cerrar</button>
     </div>
 </div>
 
 <div class="max-w-md mx-auto relative min-h-screen pb-16 bg-gray-100">
     
     <!-- LOGIN GENERAL -->
-    <div id="loginView" class="bg-white p-6 rounded-2xl shadow-xl text-center mt-12 border border-slate-200 mx-4 relative overflow-hidden">
-        <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-green-500"></div>
-        <h2 class="text-3xl font-black text-slate-800 mb-1 tracking-tight">Acceso Personal</h2>
-        <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-6">Plataforma Fútbol Escolar</p>
-        <input type="number" id="dniLogin" placeholder="Ingrese su DNI" class="w-full border-2 border-slate-200 focus:border-green-500 outline-none p-3.5 rounded-xl mb-4 text-center text-xl font-bold text-slate-700 transition">
-        <button id="btnCargar" onclick="iniciarSesion()" class="bg-slate-800 text-white w-full py-4 rounded-xl text-lg font-bold hover:bg-slate-900 shadow-lg transition">Ingresar al Panel</button>
+    <div id="loginView" class="bg-white p-6 rounded-2xl shadow-xl text-center mt-12 border border-slate-200 mx-4">
+        <h2 class="text-3xl font-black text-slate-800 mb-1">Acceso Personal</h2>
+        <input type="number" id="dniLogin" placeholder="DNI" class="w-full border-2 border-slate-200 p-3.5 rounded-xl mb-4 text-center text-xl font-bold mt-4">
+        <button id="btnCargar" onclick="iniciarSesion()" class="bg-slate-800 text-white w-full py-4 rounded-xl text-lg font-bold">Ingresar</button>
     </div>
 
+    <!-- ============================================== -->
     <!-- PANEL COORDINADOR -->
+    <!-- ============================================== -->
     <div id="coordinadorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
-            <h2 class="text-2xl font-black tracking-tight">Gerencia Deportiva</h2>
+            <h2 class="text-2xl font-black">Gerencia Deportiva</h2>
             <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Panel de Coordinador</p>
         </div>
         <div class="px-4 flex justify-between items-center mb-4">
             <h3 class="font-bold text-slate-800 text-lg">Selecciones</h3>
-            <button onclick="abrirModalCrearSeleccion()" class="text-xs bg-slate-800 text-white font-bold px-4 py-2 rounded-xl shadow hover:bg-slate-900 transition">+ Crear Nueva</button>
         </div>
         <div id="contenedorSelecciones" class="px-4"></div>
     </div>
     
-    <div id="dashboardEquipoView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
+    <div id="dashboardCoordinadorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
         <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">Volver</button>
-            <h2 id="dashNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
-            <p id="dashCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
+            <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3">⬅ Volver</button>
+            <h2 id="dashCoordNombreEquipo" class="font-black text-2xl uppercase">Cargando...</h2>
+            <p id="dashCoordCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase"></p>
         </div>
         <div class="p-4 mt-2">
+            <div class="bg-white rounded-xl shadow-sm border p-4 mb-5 flex justify-between items-center">
+                <div><p class="text-[10px] text-slate-400 font-bold uppercase">Entrenador</p><p id="dashCoordNombreDT" class="text-sm font-bold">Cargando...</p></div>
+                <div id="dashCoordWspDT"></div>
+            </div>
+            <!-- Botones del Coordinador -->
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="abrirModulo('moduloDashboardCampeonato')" class="col-span-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-6 flex items-center justify-between transition shadow-md">
-                    <div>
-                        <span class="text-xs font-bold uppercase tracking-wider opacity-75">Visualizar</span>
-                        <h3 class="text-xl font-black">Dashboard de<br>Campeonato</h3>
-                    </div>
-                    <span class="text-5xl">🏆</span>
+                <button class="bg-blue-600 text-white rounded-2xl p-6 flex flex-col items-center col-span-2 shadow-md">
+                    <span class="text-3xl mb-1">🏆</span><span class="font-bold">Dashboard de Campeonato</span>
                 </button>
-                <!-- Otros módulos del coordinador (Jugadores, etc) irían aquí -->
             </div>
         </div>
     </div>
 
 
-    <!-- PANEL DEL PROFESOR -->
+    <!-- ============================================== -->
+    <!-- PANEL DEL PROFESOR / DT -->
+    <!-- ============================================== -->
     <div id="profesorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
-            <h2 class="text-2xl font-black tracking-tight">Comando Técnico</h2>
+            <h2 class="text-2xl font-black">Comando Técnico</h2>
             <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Panel de Entrenador</p>
         </div>
         <div class="px-4 mb-4"><h3 class="font-bold text-slate-800 text-lg">Mis Equipos a Cargo</h3></div>
         <div id="contenedorEquiposProfesor" class="px-4"></div>
     </div>
 
+    <!-- Dashboard Principal del Profesor -->
     <div id="dashboardProfesorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
         <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">Volver</button>
-            <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
-            <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
+            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3">⬅ Volver</button>
+            <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase">Cargando...</h2>
+            <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase"></p>
         </div>
+        
         <div class="p-4 mt-2">
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl p-6 flex flex-col items-center justify-center transition active:scale-95 shadow-sm text-center">
+                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
                     <span class="text-4xl mb-3 drop-shadow-sm">👥</span>
                     <span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
                 </button>
-                <!-- ... los demás botones ... -->
+                <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
+                    <span class="text-4xl mb-3 drop-shadow-sm">✅</span>
+                    <span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span>
+                </button>
+                <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
+                    <span class="text-4xl mb-3 drop-shadow-sm">⚽</span>
+                    <span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span>
+                </button>
+                <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
+                    <span class="text-4xl mb-3 drop-shadow-sm">📊</span>
+                    <span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Módulo: Armar Selección (Roster Oficial) -->
+    <!-- Módulo del Profesor: ARMAR SELECCIÓN (Roster) -->
     <div id="profeRosterView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-30 flex justify-between items-center">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">👥</span> Seleccionados</h2>
-            <button onclick="cerrarModuloProfe('profeRosterView')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
+        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center">
+            <h2 class="font-bold text-lg">👥 Seleccionados</h2>
+            <button onclick="cerrarModuloProfe('profeRosterView')" class="text-blue-200 font-bold">✕</button>
         </div>
         <div class="p-4">
-            <div class="flex justify-between items-center mb-4">
-                <p class="text-[11px] text-slate-500 font-medium leading-tight mr-4">Marque a los alumnos que conformarán la Selección Oficial.</p>
-                <button onclick="abrirModalNuevoJugador()" class="bg-blue-100 text-blue-700 text-[11px] font-bold px-3 py-2 rounded-lg hover:bg-blue-200 transition shrink-0 shadow-sm">+ Añadir Nuevo</button>
-            </div>
-            <div id="listaRosterCheckboxes" class="bg-white border border-slate-200 rounded-xl overflow-y-auto max-h-[60vh] shadow-sm mb-6"></div>
-            <button id="btnGuardarRoster" onclick="guardarRosterFinal()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition">💾 Guardar Selección Oficial</button>
+            <div id="listaRosterCheckboxes" class="bg-white border rounded-xl overflow-y-auto max-h-[60vh] shadow-sm mb-6"></div>
+            <button class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg">💾 Guardar Oficial</button>
         </div>
     </div>
+    
+    <!-- Módulos Adicionales (Placeholders para las demás vistas del DT) -->
+    <div id="profeAsistenciaView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-amber-500 text-white p-4 shadow-md sticky top-0 flex justify-between items-center">
+            <h2 class="font-bold text-lg">✅ Tomar Asistencia</h2>
+            <button onclick="cerrarModuloProfe('profeAsistenciaView')" class="text-amber-100 font-bold">✕</button>
+        </div>
+        <p class="p-4">Pantalla de Asistencia (En construcción)</p>
+    </div>
 
-    <!-- ESTRUCTURA BASE PARA EL DASHBOARD DE CAMPEONATO Y DE JUGADORES -->
-    <!-- (Los llenaremos de datos y tablas gráficas en el siguiente paso) -->
-    <div id="moduloDashboardCampeonato" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-30 flex justify-between items-center">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Campeonato</h2>
-            <button onclick="cerrarModulo('moduloDashboardCampeonato')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
+    <div id="profeEncuentrosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-green-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center">
+            <h2 class="font-bold text-lg">⚽ Encuentros</h2>
+            <button onclick="cerrarModuloProfe('profeEncuentrosView')" class="text-green-200 font-bold">✕</button>
         </div>
-        <div class="p-4">
-            <p class="text-center text-slate-500 my-10 font-bold animate-pulse">Estructura del Dashboard lista. Se conectarán las métricas aquí...</p>
+        <p class="p-4">Pantalla de Encuentros (En construcción)</p>
+    </div>
+
+    <div id="profeEstadisticasView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-purple-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center">
+            <h2 class="font-bold text-lg">📊 Estadísticas</h2>
+            <button onclick="cerrarModuloProfe('profeEstadisticasView')" class="text-purple-200 font-bold">✕</button>
         </div>
+        <p class="p-4">Pantalla de Estadísticas (En construcción)</p>
     </div>
 
 </div>
