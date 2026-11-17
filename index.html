@@ -9,52 +9,83 @@
 <body class="bg-gray-100 p-4 font-sans text-slate-800">
 
 <script>
+    // TU URL DE APPS SCRIPT
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
     const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html"; 
 
     let estadoGlobal = { idColegio: "", dniLogueado: "", rol: "", idEquipoSeleccionado: "", seleccionesCoordinador: [], equiposProfesor: [], dnisConvocados: [] };
 
-    // --- ALERTS ---
-    function mostrarAlerta(mensaje) { document.getElementById('alertaMensaje').innerText = mensaje; document.getElementById('alertaModern').classList.replace('hidden', 'flex'); }
+    // --- SISTEMA DE ALERTAS ---
+    function mostrarAlerta(mensaje) {
+        document.getElementById('alertaMensaje').innerText = mensaje;
+        document.getElementById('alertaModern').classList.replace('hidden', 'flex');
+    }
     function cerrarAlerta() { document.getElementById('alertaModern').classList.replace('flex', 'hidden'); }
 
     // --- LOGIN ---
     async function iniciarSesion() {
-        const dni = document.getElementById("dniLogin").value; if (!dni) return mostrarAlerta("Por favor, ingrese su DNI.");
+        const dni = document.getElementById("dniLogin").value;
+        if (!dni) return mostrarAlerta("Por favor, ingrese su DNI.");
         document.getElementById("btnCargar").innerText = "Validando...";
         try {
             const res = await fetch(`${URL_BACKEND}?action=iniciarSesion&dni=${dni}`);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
+            
             estadoGlobal.dniLogueado = data.dni; estadoGlobal.rol = data.rol; estadoGlobal.idColegio = data.idColegio;
             document.getElementById("loginView").classList.add("hidden");
-            if (data.rol === 'Coordinador') cargarMenuCoordinador(); else if (data.rol === 'Profesor') cargarMenuProfesor();
+            
+            if (data.rol === 'Coordinador') cargarMenuCoordinador();
+            else if (data.rol === 'Profesor') cargarMenuProfesor();
         } catch (error) { mostrarAlerta(error.message); document.getElementById("btnCargar").innerText = "Ingresar al Panel"; }
     }
 
     // ==========================================
-    // 1. FLUJOS COORDINADOR
+    // 1. FLUJOS DEL COORDINADOR
     // ==========================================
     async function cargarMenuCoordinador() {
         document.getElementById("coordinadorMainView").classList.remove("hidden");
         document.getElementById("contenedorSelecciones").innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando selecciones...</p>";
+        
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerPanelCoordinador&idColegio=${estadoGlobal.idColegio}`);
-            const data = await res.json(); estadoGlobal.seleccionesCoordinador = data.selecciones;
-            let html = "";
-            data.selecciones.forEach(sel => { html += `<button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left"><div><h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${sel.categoria}</p></div><div class="bg-slate-100 p-3 rounded-full text-slate-400"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div></button>`; });
-            document.getElementById("contenedorSelecciones").innerHTML = html;
+            const data = await res.json();
+            estadoGlobal.seleccionesCoordinador = data.selecciones;
+            
+            let htmlBotones = "";
+            data.selecciones.forEach(sel => {
+                htmlBotones += `
+                    <button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
+                        <div>
+                            <h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3>
+                            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${sel.categoria}</p>
+                        </div>
+                        <div class="bg-slate-100 p-3 rounded-full text-slate-400">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </div>
+                    </button>`;
+            });
+            document.getElementById("contenedorSelecciones").innerHTML = htmlBotones;
         } catch (error) { document.getElementById("contenedorSelecciones").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
     }
 
     function abrirDashboardCoordinador(idEquipo) {
-        const sel = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === idEquipo); estadoGlobal.idEquipoSeleccionado = idEquipo;
-        document.getElementById("coordinadorMainView").classList.add("hidden"); document.getElementById("dashboardCoordinadorView").classList.remove("hidden");
-        document.getElementById("dashCoordNombreEquipo").innerText = sel.nombreEquipo; document.getElementById("dashCoordCategoriaEquipo").innerText = sel.categoria; document.getElementById("dashCoordNombreDT").innerText = sel.profesor;
-        document.getElementById("dashCoordWspDT").innerHTML = sel.telefonoWsp ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center">💬 Wsp</a>` : "";
+        const sel = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === idEquipo);
+        estadoGlobal.idEquipoSeleccionado = idEquipo;
+        
+        document.getElementById("coordinadorMainView").classList.add("hidden"); 
+        document.getElementById("dashboardCoordinadorView").classList.remove("hidden");
+        
+        document.getElementById("dashCoordNombreEquipo").innerText = sel.nombreEquipo; 
+        document.getElementById("dashCoordCategoriaEquipo").innerText = sel.categoria; 
+        document.getElementById("dashCoordNombreDT").innerText = sel.profesor;
+        document.getElementById("dashCoordWspDT").innerHTML = sel.telefonoWsp ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center hover:bg-green-200 transition">💬 Wsp</a>` : "";
     }
     
-    function volverAMenuCoordinador() { document.getElementById("dashboardCoordinadorView").classList.add("hidden"); document.getElementById("coordinadorMainView").classList.remove("hidden"); }
+    function volverAMenuCoordinador() { 
+        document.getElementById("dashboardCoordinadorView").classList.add("hidden"); 
+        document.getElementById("coordinadorMainView").classList.remove("hidden"); 
+    }
 
     function abrirModuloCoordinador(moduloID) {
         document.getElementById("dashboardCoordinadorView").classList.add("hidden");
@@ -63,10 +94,16 @@
         
         if (moduloID === 'moduloJugadores') cargarModuloJugadores();
         if (moduloID === 'moduloDT') cargarModuloDT();
+        if (moduloID === 'moduloEncuentros') cargarModuloEncuentros('listaEncuentrosModulo');
+        if (moduloID === 'moduloAsistencia') cargarModuloAsistencia('listaAsistenciaModulo');
     }
-    function cerrarModuloCoordinador(moduloID) { document.getElementById(moduloID).classList.add("hidden"); document.getElementById("dashboardCoordinadorView").classList.remove("hidden"); }
 
-    // Modales de Creación (Coordinador)
+    function cerrarModuloCoordinador(moduloID) { 
+        document.getElementById(moduloID).classList.add("hidden"); 
+        document.getElementById("dashboardCoordinadorView").classList.remove("hidden"); 
+    }
+
+    // Modal Crear Selección (Coordinador)
     function abrirModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex'); }
     function cerrarModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden'); }
     
@@ -85,31 +122,6 @@
         btn.innerText = "Crear Selección"; btn.disabled = false;
     }
 
-    async function cargarModuloDT() {
-        const sel = document.getElementById("selNuevoDT"); sel.innerHTML = "<option value=''>Cargando profesores...</option>";
-        try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerProfesores&idColegio=${estadoGlobal.idColegio}`);
-            const data = await res.json();
-            let html = "<option value=''>Seleccione un Profesor...</option>";
-            data.profesores.forEach(p => html += `<option value="${p.dni}">${p.nombre}</option>`); sel.innerHTML = html;
-        } catch(e) {}
-    }
-    
-    function guardarNuevoDT() {
-        const dniProfesor = document.getElementById("selNuevoDT").value; if(!dniProfesor) return mostrarAlerta("Seleccione un profesor.");
-        const btn = document.getElementById("btnGuardarDT"); btn.innerText = "Guardando..."; btn.disabled = true;
-        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(data) {
-            if(data.exito) {
-                estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado).profesor = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text; 
-                mostrarAlerta("Entrenador asignado con éxito"); cerrarModuloCoordinador('moduloDT'); abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado); 
-            } else { mostrarAlerta("Error al actualizar"); }
-            btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; delete window[callbackName];
-        };
-        const scriptGuardar = document.createElement('script');
-        scriptGuardar.src = `${URL_BACKEND}?action=asignarProfesorEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&dniProfesor=${encodeURIComponent(dniProfesor)}&callback=${callbackName}`;
-        document.body.appendChild(scriptGuardar);
-    }
 
     // ==========================================
     // 2. FLUJOS DEL PROFESOR / DT
@@ -119,20 +131,38 @@
         document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando sus equipos...</p>";
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerEquipos&dni=${estadoGlobal.dniLogueado}`);
-            const data = await res.json(); estadoGlobal.equiposProfesor = data.datos;
+            const data = await res.json();
+            estadoGlobal.equiposProfesor = data.datos;
             let html = "";
-            data.datos.forEach(eq => { html += `<button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left"><div><h3 class="font-black text-2xl uppercase tracking-tight">${eq.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${eq.categoria}</p></div><div class="bg-green-50 p-3 rounded-full text-green-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div></button>`; });
+            data.datos.forEach(eq => {
+                html += `
+                    <button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
+                        <div>
+                            <h3 class="font-black text-2xl uppercase tracking-tight">${eq.nombreEquipo}</h3>
+                            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${eq.categoria}</p>
+                        </div>
+                        <div class="bg-green-50 p-3 rounded-full text-green-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                        </div>
+                    </button>`;
+            });
             document.getElementById("contenedorEquiposProfesor").innerHTML = html;
         } catch (error) { document.getElementById("contenedorEquiposProfesor").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
     }
 
     function abrirDashboardProfesor(idEquipo) {
-        const eq = estadoGlobal.equiposProfesor.find(e => e.idEquipo === idEquipo); estadoGlobal.idEquipoSeleccionado = idEquipo;
-        document.getElementById("profesorMainView").classList.add("hidden"); document.getElementById("dashboardProfesorView").classList.remove("hidden");
-        document.getElementById("dashProfeNombreEquipo").innerText = eq.nombreEquipo; document.getElementById("dashProfeCategoriaEquipo").innerText = eq.categoria;
+        const eq = estadoGlobal.equiposProfesor.find(e => e.idEquipo === idEquipo); 
+        estadoGlobal.idEquipoSeleccionado = idEquipo;
+        document.getElementById("profesorMainView").classList.add("hidden"); 
+        document.getElementById("dashboardProfesorView").classList.remove("hidden");
+        document.getElementById("dashProfeNombreEquipo").innerText = eq.nombreEquipo; 
+        document.getElementById("dashProfeCategoriaEquipo").innerText = eq.categoria;
     }
     
-    function volverAMenuProfesor() { document.getElementById("dashboardProfesorView").classList.add("hidden"); document.getElementById("profesorMainView").classList.remove("hidden"); }
+    function volverAMenuProfesor() { 
+        document.getElementById("dashboardProfesorView").classList.add("hidden"); 
+        document.getElementById("profesorMainView").classList.remove("hidden"); 
+    }
 
     function abrirModuloProfe(moduloID) {
         document.getElementById("dashboardProfesorView").classList.add("hidden");
@@ -140,11 +170,103 @@
         document.getElementById(moduloID).classList.remove("hidden");
         
         if (moduloID === 'profeRosterView') cargarRosterProfe();
-        // Las demás cargas
+        if (moduloID === 'profeAsistenciaView') cargarListaAsistencia();
+        if (moduloID === 'profeEncuentrosView') cargarModuloEncuentros('listaEncuentrosProfe');
+        if (moduloID === 'profeEstadisticasView') cargarModuloAsistencia('listaEstadisticasProfe');
     }
-    function cerrarModuloProfe(moduloID) { document.getElementById(moduloID).classList.add("hidden"); document.getElementById("dashboardProfesorView").classList.remove("hidden"); }
 
-    // --- Módulo: ARMAR SELECCION (Con Camiseta) ---
+    function cerrarModuloProfe(moduloID) { 
+        document.getElementById(moduloID).classList.add("hidden"); 
+        document.getElementById("dashboardProfesorView").classList.remove("hidden"); 
+    }
+
+
+    // ==========================================
+    // 3. FUNCIONES DE MÓDULOS ESPECÍFICOS Y COMPARTIDOS
+    // ==========================================
+    
+    // --- Módulo: Jugadores (Coordinador) ---
+    async function cargarModuloJugadores() {
+        const contenedor = document.getElementById("listaJugadoresModulo"); contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 animate-pulse my-10'>Cargando plantilla...</p>";
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const data = await res.json();
+            if(!data.jugadores || data.jugadores.length === 0) return contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Sin jugadores oficiales.</p>";
+            let html = "";
+            data.jugadores.forEach(j => {
+                html += `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p></div></div>`;
+            });
+            contenedor.innerHTML = html;
+        } catch(e) { contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
+    }
+
+    // --- Módulo: Cambiar DT (Coordinador) ---
+    async function cargarModuloDT() {
+        const sel = document.getElementById("selNuevoDT"); sel.innerHTML = "<option value=''>Cargando profesores...</option>";
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerProfesores&idColegio=${estadoGlobal.idColegio}`);
+            const data = await res.json();
+            let html = "<option value=''>Seleccione un Profesor...</option>";
+            data.profesores.forEach(p => html += `<option value="${p.dni}">${p.nombre}</option>`); sel.innerHTML = html;
+        } catch(e) { sel.innerHTML = "<option value=''>Error al cargar</option>"; }
+    }
+
+    function guardarNuevoDT() {
+        const dniProfesor = document.getElementById("selNuevoDT").value;
+        if(!dniProfesor) return mostrarAlerta("Debe seleccionar un profesor.");
+        const btn = document.getElementById("btnGuardarDT"); btn.innerText = "Guardando..."; btn.disabled = true;
+
+        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
+        window[callbackName] = function(data) {
+            if(data.exito) {
+                const equipoInfo = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado);
+                equipoInfo.profesor = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text; 
+                mostrarAlerta("Entrenador asignado con éxito");
+                cerrarModuloCoordinador('moduloDT'); abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado); 
+            } else { mostrarAlerta("Error al actualizar"); }
+            btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; delete window[callbackName];
+        };
+        const scriptGuardar = document.createElement('script');
+        scriptGuardar.src = `${URL_BACKEND}?action=asignarProfesorEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&dniProfesor=${encodeURIComponent(dniProfesor)}&callback=${callbackName}`;
+        document.body.appendChild(scriptGuardar);
+    }
+
+    // --- Módulo Compartido: ENCUENTROS ---
+    async function cargarModuloEncuentros(contenedorID) {
+        const contenedor = document.getElementById(contenedorID); contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Cargando partidos...</p>";
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerEncuentrosEquipoCoordinador&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const data = await res.json();
+            if(!data.encuentros || data.encuentros.length === 0) return contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>No hay encuentros programados.</p>";
+            const formatDate = (dateStr) => { const d = new Date(dateStr); return d.toLocaleString('es-PE', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}); };
+            let html = "";
+            data.encuentros.forEach(e => {
+                let badgeEstado = e.estado === 'Activo' ? '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>' : '<span class="bg-slate-200 text-slate-600 px-2 py-1 rounded text-[10px] font-bold">CERRADO</span>';
+                html += `<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3"><div class="absolute top-4 right-4">${badgeEstado}</div><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">vs Rival</p><h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-3 pr-16">${e.rival}</h3><div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div><div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div></div>`;
+            });
+            contenedor.innerHTML = html;
+        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
+    }
+
+    // --- Módulo Compartido: ASISTENCIA / ESTADÍSTICAS ---
+    async function cargarModuloAsistencia(contenedorID) {
+        const contenedor = document.getElementById(contenedorID); contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Calculando estadísticas...</p>";
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerAsistenciaEquipo&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const data = await res.json();
+            if(!data.asistencias || data.asistencias.length === 0) return contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Sin datos de asistencia.</p>";
+            let html = `<table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200"><th class="p-3 font-bold">Jugador</th><th class="p-3 font-bold text-center w-16">Clases</th><th class="p-3 font-bold text-center w-20">% Asist.</th></tr></thead><tbody>`;
+            data.asistencias.forEach(a => {
+                let colorBarra = a.porcentaje >= 80 ? 'bg-green-500' : (a.porcentaje >= 50 ? 'bg-amber-500' : 'bg-red-500');
+                let colorTexto = a.totalAsistencias === 0 ? 'text-slate-400' : 'text-slate-700';
+                html += `<tr class="border-b border-slate-100 hover:bg-slate-50 transition"><td class="p-3 flex items-center gap-3"><img src="${a.fotoUrl}" class="w-8 h-8 rounded-full object-cover bg-slate-200 border border-slate-200"><span class="text-xs font-bold text-slate-800">${a.nombre}</span></td><td class="p-3 text-center text-[11px] font-bold ${colorTexto}">${a.presentes}/${a.totalAsistencias}</td><td class="p-3 text-center"><span class="text-[11px] font-black ${colorTexto} inline-block mb-1">${a.totalAsistencias === 0 ? 'N/A' : a.porcentaje+'%'}</span><div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${colorBarra} h-1.5 rounded-full" style="width: ${a.totalAsistencias === 0 ? 0 : a.porcentaje}%"></div></div></td></tr>`;
+            });
+            html += `</tbody></table>`;
+            contenedor.innerHTML = html;
+        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
+    }
+
+    // --- Módulo: ARMAR SELECCION (Profesor / Roster Oficial con Camisetas) ---
     async function cargarRosterProfe() {
         const contenedor = document.getElementById("listaRosterCheckboxes"); contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Buscando alumnos...</p>";
         try {
@@ -159,7 +281,6 @@
     }
 
     function crearFilaRoster(jugador, marcado) {
-        // Se añade un input numérico para la camiseta de este jugador en esta selección específica
         const chk = marcado ? 'checked' : '';
         return `
         <div class="flex items-center justify-between p-3 border-b border-slate-100 bg-white hover:bg-slate-50 roster-item" data-dni="${jugador.dni}">
@@ -188,7 +309,6 @@
                 });
             }
         });
-        
         const btn = document.getElementById("btnGuardarRoster"); btn.innerText = "Guardando..."; btn.disabled = true;
 
         try {
@@ -203,10 +323,10 @@
                     mostrarAlerta(data.mensaje); btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;
                     cerrarModuloProfe('profeRosterView');
                 });
-        } catch (e) { mostrarAlerta("Error"); btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;}
+        } catch (e) { mostrarAlerta("Error al guardar."); btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;}
     }
 
-    // Modal Nuevo Jugador (con FOTO)
+    // Modal Nuevo Jugador (con FOTO comprimida en celular)
     let base64FotoJugador = ""; 
     function abrirModalNuevoJugador() {
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
@@ -217,6 +337,7 @@
         document.getElementById('njInputFoto').value = ""; document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Subir+Foto";
         base64FotoJugador = ""; document.getElementById('modalNuevoJugador').classList.replace('hidden', 'flex');
     }
+    
     function cerrarModalNuevoJugador() { document.getElementById('modalNuevoJugador').classList.replace('flex', 'hidden'); }
 
     function procesarFotoSubida(event) {
@@ -238,9 +359,11 @@
         const dni = document.getElementById('njDni').value, nom = document.getElementById('njNombres').value, ap = document.getElementById('njApellidos').value, gr = document.getElementById('njGrado').value;
         if(!dni || !nom) return mostrarAlerta("Complete DNI y Nombres.");
         const btn = document.getElementById('btnGuardarNuevoJugador'); btn.innerText = "Guardando..."; btn.disabled = true;
+
         try {
             const formData = new URLSearchParams(); formData.append('action', 'registrarNuevoJugador'); formData.append('dni', dni); formData.append('nombres', nom); formData.append('apellidos', ap); formData.append('grado', gr); formData.append('idColegio', estadoGlobal.idColegio);
             if(base64FotoJugador) formData.append('fotoBase64', base64FotoJugador);
+
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = await res.json();
             if(data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoJugador(); cargarRosterProfe(); } else throw new Error(data.error);
@@ -248,15 +371,113 @@
         btn.innerText = "Registrar Jugador"; btn.disabled = false;
     }
 
+    // --- Módulo: TOMAR ASISTENCIA (Profesor) ---
+    async function cargarListaAsistencia() {
+        const contenedor = document.getElementById("listaAsistenciaTomar"); contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando jugadores...</p>";
+        document.getElementById("fechaAsistencia").valueAsDate = new Date();
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const data = await res.json();
+            if(!data.jugadores || data.jugadores.length === 0) return contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Primero debe Armar la Selección.</p>";
+            let html = "";
+            data.jugadores.forEach(j => {
+                html += `<div class="flex items-center justify-between p-3 border-b border-slate-100" data-dni="${j.dni}"><div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover"><div><p class="font-bold text-slate-800 text-sm leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${j.grado}</p></div></div><div class="flex gap-2"><button onclick="marcarAsistencia(this, 'Presente')" class="btn-asist bg-green-500 text-white font-bold px-3 py-1 rounded shadow-sm text-xs w-16 opacity-100 transition">P</button><button onclick="marcarAsistencia(this, 'Falta')" class="btn-asist bg-slate-200 text-slate-500 font-bold px-3 py-1 rounded shadow-sm text-xs w-16 opacity-50 transition hover:opacity-100">F</button></div><input type="hidden" class="estado-asistencia-input" value="Presente"></div>`;
+            });
+            contenedor.innerHTML = html;
+        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>"; }
+    }
+
+    function marcarAsistencia(btnClick, estado) {
+        const cFila = btnClick.closest('.flex.items-center.justify-between'); const btns = cFila.querySelectorAll('.btn-asist');
+        btns[0].classList.replace('bg-green-500', 'bg-slate-200'); btns[0].classList.replace('text-white', 'text-slate-500'); btns[0].classList.replace('opacity-100', 'opacity-50');
+        btns[1].classList.replace('bg-red-500', 'bg-slate-200'); btns[1].classList.replace('text-white', 'text-slate-500'); btns[1].classList.replace('opacity-100', 'opacity-50');
+        btnClick.classList.replace('bg-slate-200', estado === 'Presente' ? 'bg-green-500' : 'bg-red-500'); btnClick.classList.replace('text-slate-500', 'text-white'); btnClick.classList.replace('opacity-50', 'opacity-100');
+        cFila.querySelector('.estado-asistencia-input').value = estado;
+    }
+
+    function guardarAsistenciaBD() {
+        const fecha = document.getElementById("fechaAsistencia").value; if(!fecha) return mostrarAlerta("Seleccione una fecha.");
+        let arr = []; document.querySelectorAll('#listaAsistenciaTomar > div').forEach(fila => arr.push({ dni: fila.getAttribute('data-dni'), estado: fila.querySelector('.estado-asistencia-input').value }));
+
+        const btn = document.getElementById("btnGuardarAsist"); btn.innerText = "Guardando..."; btn.disabled = true;
+        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
+        window[callbackName] = function(data) {
+            mostrarAlerta("Asistencia guardada correctamente."); btn.innerText = "💾 Guardar Asistencia de Hoy"; btn.disabled = false;
+            cerrarModuloProfe('profeAsistenciaView'); delete window[callbackName];
+        };
+        const scriptGuardar = document.createElement('script');
+        scriptGuardar.src = `${URL_BACKEND}?action=guardarAsistencia&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&fecha=${encodeURIComponent(fecha)}&datos=${encodeURIComponent(JSON.stringify(arr))}&callback=${callbackName}`;
+        document.body.appendChild(scriptGuardar);
+    }
+
+    // --- Sub-Módulo: PROGRAMAR PARTIDO (Profesor) ---
+    async function iniciarProgramacionPartido() {
+        document.getElementById("profeEncuentrosView").classList.add("hidden"); document.getElementById("programarPartidoView").classList.remove("hidden");
+        document.getElementById("formProgramacion").classList.add("hidden"); document.getElementById("pantallaExito").classList.add("hidden"); document.getElementById("loaderProgramar").classList.remove("hidden");
+        
+        estadoGlobal.dnisConvocados = [];
+        document.getElementById("txtRival").value = ""; document.getElementById("txtFecha").value = ""; document.getElementById("txtFechaConvocatoria").value = ""; document.getElementById("txtLugar").value = ""; document.getElementById("txtDireccion").value = "";
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerDatosProgramacion&idEquipo=${estadoGlobal.idEquipoSeleccionado}&idColegio=${estadoGlobal.idColegio}`);
+            const data = await res.json();
+            
+            let options = "<option value=''>Seleccione Campeonato...</option>"; data.campeonatos.forEach(c => options += `<option value="${c.id}">${c.nombre}</option>`); document.getElementById("selCampeonato").innerHTML = options;
+
+            let htmlJugadores = "";
+            data.plantilla.forEach(j => { htmlJugadores += `<label class="flex items-center p-2 border rounded bg-white shadow-sm cursor-pointer hover:bg-slate-50 mb-1"><input type="checkbox" value="${j.dni}" class="check-convocado w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)"><div><div class="font-bold text-slate-700">${j.nombre}</div><div class="text-xs text-slate-400">Camiseta: ${j.camiseta}</div></div></label>`; });
+            document.getElementById("listaJugadoresConvocar").innerHTML = htmlJugadores || "<p class='text-red-500 text-sm'>No hay jugadores en la Selección Oficial.</p>";
+
+            document.getElementById("loaderProgramar").classList.add("hidden"); document.getElementById("formProgramacion").classList.remove("hidden");
+        } catch (error) { mostrarAlerta("Error: " + error); }
+    }
+
+    function calcularConvocatoria() {
+        const fStr = document.getElementById("txtFecha").value;
+        if(fStr) { let f = new Date(fStr); f.setMinutes(f.getMinutes() - 30); const p = (n) => n<10?'0'+n:n; document.getElementById("txtFechaConvocatoria").value = `${f.getFullYear()}-${p(f.getMonth()+1)}-${p(f.getDate())}T${p(f.getHours())}:${p(f.getMinutes())}`; }
+    }
+
+    function toggleConvocado(chk) {
+        if(chk.checked) estadoGlobal.dnisConvocados.push(chk.value); else estadoGlobal.dnisConvocados = estadoGlobal.dnisConvocados.filter(dni => dni !== chk.value);
+        document.getElementById("contadorConvocados").innerText = estadoGlobal.dnisConvocados.length;
+    }
+
+    function guardarEncuentro() {
+        const idCamp = document.getElementById("selCampeonato").value, rival = document.getElementById("txtRival").value, fecha = document.getElementById("txtFecha").value, fechaConv = document.getElementById("txtFechaConvocatoria").value, lugar = document.getElementById("txtLugar").value, dir = document.getElementById("txtDireccion").value;
+        if(!idCamp || !rival || !fecha || !fechaConv || !lugar || estadoGlobal.dnisConvocados.length === 0) return mostrarAlerta("Por favor complete todos los campos y seleccione al menos 1 jugador.");
+        const btn = document.getElementById("btnGuardarEncuentro"); btn.innerText = "Programando..."; btn.disabled = true;
+
+        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
+        window[callbackName] = function(dataGuardar) {
+            if(dataGuardar.exito) {
+                document.getElementById("formProgramacion").classList.add("hidden"); document.getElementById("pantallaExito").classList.remove("hidden");
+                document.getElementById("linkGenerado").value = `${URL_GITHUB}?token=${dataGuardar.token}`;
+                let nombres = []; document.querySelectorAll('.check-convocado:checked').forEach(chk => nombres.push(chk.nextElementSibling.querySelector('.font-bold').innerText));
+                const fd = (dateStr) => { const d = new Date(dateStr); return d.toLocaleString('es-PE', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}); };
+                let msg = `⚽ *CONVOCATORIA OFICIAL* ⚽\n\n*Rival:* ${rival}\n*Día y Hora:* ${fd(fecha)}\n*Hora de Citación:* ${fd(fechaConv)}\n*Lugar:* ${lugar}\n*Ref:* ${dir}\n\n*Jugadores Convocados:*\n`;
+                nombres.forEach(n => msg += `✅ ${n}\n`); msg += `\n*Necesitamos apoyo:* ¿Algún padre voluntario para llevar las estadísticas en la Mesa de Control? Responda a este mensaje para enviarle el link privado.`;
+                document.getElementById("btnWhatsAppGrupo").innerHTML = `<a href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-3 rounded-lg shadow-md hover:bg-green-600 transition">Enviar al Grupo WhatsApp</a>`;
+            } else { mostrarAlerta("Error al programar."); }
+            btn.innerText = "Programar y Generar Link"; btn.disabled = false; delete window[callbackName];
+        };
+        const scriptGuardar = document.createElement('script');
+        scriptGuardar.src = `${URL_BACKEND}?action=guardarEncuentro&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idCampeonato=${encodeURIComponent(idCamp)}&rival=${encodeURIComponent(rival)}&fechaPartido=${encodeURIComponent(fecha)}&fechaConvocatoria=${encodeURIComponent(fechaConv)}&lugar=${encodeURIComponent(lugar)}&direccion=${encodeURIComponent(dir)}&dnisConvocados=${encodeURIComponent(JSON.stringify(estadoGlobal.dnisConvocados))}&callback=${callbackName}`;
+        document.body.appendChild(scriptGuardar);
+    }
+    function copiarLink() { const input = document.getElementById("linkGenerado"); input.select(); document.execCommand("copy"); mostrarAlerta("Enlace copiado al portapapeles."); }
+
 </script>
 
+
 <!-- ======================================================= -->
-<!-- MODALES GLOBALES -->
+<!-- VENTANAS MODALES EMERGENTES GLOBALES -->
 <!-- ======================================================= -->
+
+<!-- Modal Alerta -->
 <div id="alertaModern" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] items-center justify-center px-4">
     <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-xs w-full text-center">
         <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
-        <h3 class="text-lg font-black text-slate-800 mb-2">Aviso</h3>
+        <h3 class="text-lg font-black text-slate-800 mb-2">Aviso del Sistema</h3>
         <p id="alertaMensaje" class="text-sm text-slate-500 mb-6 font-medium leading-snug"></p>
         <button onclick="cerrarAlerta()" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl hover:bg-slate-900 transition">Entendido</button>
     </div>
@@ -312,6 +533,9 @@
     </div>
 </div>
 
+<!-- ======================================================= -->
+<!-- CONTENEDOR PRINCIPAL -->
+<!-- ======================================================= -->
 <div class="max-w-md mx-auto relative min-h-screen pb-16 bg-gray-100">
     
     <!-- LOGIN GENERAL -->
@@ -320,11 +544,11 @@
         <h2 class="text-3xl font-black text-slate-800 mb-1">Acceso Personal</h2>
         <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-6">Plataforma Fútbol Escolar</p>
         <input type="number" id="dniLogin" placeholder="Ingrese su DNI" class="w-full border-2 border-slate-200 focus:border-green-500 outline-none p-3.5 rounded-xl mb-4 text-center text-xl font-bold text-slate-700">
-        <button id="btnCargar" onclick="iniciarSesion()" class="bg-slate-800 text-white w-full py-4 rounded-xl text-lg font-bold">Ingresar al Panel</button>
+        <button id="btnCargar" onclick="iniciarSesion()" class="bg-slate-800 text-white w-full py-4 rounded-xl text-lg font-bold hover:bg-slate-900 transition shadow-lg">Ingresar al Panel</button>
     </div>
 
     <!-- ======================================================= -->
-    <!-- PANEL COORDINADOR (Vistas y Dashboard) -->
+    <!-- PANTALLAS DEL COORDINADOR (Vistas y Dashboard) -->
     <!-- ======================================================= -->
     <div id="coordinadorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
@@ -340,32 +564,23 @@
     
     <div id="dashboardCoordinadorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
         <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3">⬅ Volver</button>
-            <h2 id="dashCoordNombreEquipo" class="font-black text-2xl uppercase">Cargando...</h2>
-            <p id="dashCoordCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase"></p>
+            <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver</button>
+            <h2 id="dashCoordNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
+            <p id="dashCoordCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
         </div>
         <div class="p-4 mt-2">
             <div class="bg-white rounded-xl shadow-sm border p-4 mb-5 flex justify-between items-center">
                 <div><p class="text-[10px] text-slate-400 font-bold uppercase">Entrenador a cargo</p><p id="dashCoordNombreDT" class="text-sm font-bold">Cargando...</p></div>
                 <div id="dashCoordWspDT"></div>
             </div>
-            
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="abrirModuloCoordinador('moduloDashboardCampeonato')" class="col-span-2 bg-blue-600 text-white rounded-2xl p-6 flex items-center justify-between shadow-md">
-                    <div class="text-left"><span class="text-xs font-bold uppercase opacity-75">Visualizar</span><h3 class="text-xl font-black">Dashboard de<br>Campeonato</h3></div><span class="text-5xl">🏆</span>
+                <button onclick="abrirModuloCoordinador('moduloDashboardCampeonato')" class="col-span-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-6 flex items-center justify-between transition shadow-md">
+                    <div class="text-left"><span class="text-xs font-bold uppercase tracking-wider opacity-75">Visualizar</span><h3 class="text-xl font-black">Dashboard de<br>Campeonato</h3></div><span class="text-5xl">🏆</span>
                 </button>
-                <button onclick="abrirModuloCoordinador('moduloJugadores')" class="bg-white border rounded-2xl p-4 flex flex-col items-center shadow-sm">
-                    <span class="text-3xl mb-2">🏃‍♂️</span><span class="text-xs font-bold">Jugadores</span>
-                </button>
-                <button onclick="abrirModuloCoordinador('moduloEncuentros')" class="bg-white border rounded-2xl p-4 flex flex-col items-center shadow-sm">
-                    <span class="text-3xl mb-2">⚽</span><span class="text-xs font-bold">Encuentros</span>
-                </button>
-                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border rounded-2xl p-4 flex flex-col items-center shadow-sm">
-                    <span class="text-3xl mb-2">📋</span><span class="text-xs font-bold">Asistencia</span>
-                </button>
-                <button onclick="abrirModuloCoordinador('moduloDT')" class="bg-white border rounded-2xl p-4 flex flex-col items-center shadow-sm">
-                    <span class="text-3xl mb-2">⚙️</span><span class="text-xs font-bold">Cambiar DT</span>
-                </button>
+                <button onclick="abrirModuloCoordinador('moduloJugadores')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">🏃‍♂️</span><span class="text-xs font-bold text-slate-700">Jugadores</span></button>
+                <button onclick="abrirModuloCoordinador('moduloEncuentros')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">⚽</span><span class="text-xs font-bold text-slate-700">Encuentros</span></button>
+                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">📋</span><span class="text-xs font-bold text-slate-700">Asistencia</span></button>
+                <button onclick="abrirModuloCoordinador('moduloDT')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">⚙️</span><span class="text-xs font-bold text-slate-700">Cambiar DT</span></button>
             </div>
         </div>
     </div>
@@ -376,7 +591,7 @@
     <!-- ======================================================= -->
     <div id="profesorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
-            <h2 class="text-2xl font-black">Comando Técnico</h2>
+            <h2 class="text-2xl font-black tracking-tight">Comando Técnico</h2>
             <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Panel de Entrenador</p>
         </div>
         <div class="px-4 mb-4"><h3 class="font-bold text-slate-800 text-lg">Mis Equipos a Cargo</h3></div>
@@ -385,85 +600,208 @@
 
     <div id="dashboardProfesorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
         <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3">⬅ Volver</button>
-            <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase">Cargando...</h2>
-            <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase"></p>
+            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver</button>
+            <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
+            <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
         </div>
         <div class="p-4 mt-2">
             <div class="grid grid-cols-2 gap-3">
-                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
-                    <span class="text-4xl mb-3 drop-shadow-sm">👥</span><span class="text-sm font-bold text-blue-900 text-center">Seleccionados</span>
+                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3 drop-shadow-sm">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
                 </button>
-                <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
-                    <span class="text-4xl mb-3 drop-shadow-sm">✅</span><span class="text-sm font-bold text-amber-900 text-center">Tomar<br>Asistencia</span>
+                <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3 drop-shadow-sm">✅</span><span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span>
                 </button>
-                <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
-                    <span class="text-4xl mb-3 drop-shadow-sm">⚽</span><span class="text-sm font-bold text-green-900 text-center">Partidos &<br>Convocatoria</span>
+                <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3 drop-shadow-sm">⚽</span><span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span>
                 </button>
-                <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm">
-                    <span class="text-4xl mb-3 drop-shadow-sm">📊</span><span class="text-sm font-bold text-purple-900 text-center">Ver<br>Estadísticas</span>
+                <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3 drop-shadow-sm">📊</span><span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span>
                 </button>
             </div>
         </div>
     </div>
 
+
     <!-- ======================================================= -->
-    <!-- MÓDULOS DE VISTAS (COMPARTIDOS Y EXCLUSIVOS) -->
+    <!-- PANTALLAS DE LOS MÓDULOS HTML -->
     <!-- ======================================================= -->
 
     <!-- Módulo Coord: Jugadores -->
     <div id="moduloJugadores" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center">
-            <h2 class="font-bold text-lg">🏃‍♂️ Jugadores</h2>
-            <button onclick="cerrarModuloCoordinador('moduloJugadores')" class="text-slate-300 font-bold">✕ Cerrar</button>
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏃‍♂️</span> Jugadores Oficiales</h2>
+            <button onclick="cerrarModuloCoordinador('moduloJugadores')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-4"><div id="listaJugadoresModulo" class="grid grid-cols-2 gap-3"></div></div>
     </div>
 
     <!-- Módulo Coord: Cambiar DT -->
     <div id="moduloDT" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
-        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center">
-            <h2 class="font-bold text-lg">⚙️ Cambiar Entrenador</h2>
-            <button onclick="cerrarModuloCoordinador('moduloDT')" class="text-slate-300 font-bold">✕ Cerrar</button>
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚙️</span> Cambiar Entrenador</h2>
+            <button onclick="cerrarModuloCoordinador('moduloDT')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-5 mt-4">
             <p class="text-sm text-slate-500 mb-4">Seleccione al profesor de su colegio que estará a cargo de esta selección:</p>
-            <select id="selNuevoDT" class="w-full border-2 border-slate-300 p-3.5 rounded-xl mb-6 font-bold text-slate-700"></select>
-            <button id="btnGuardarDT" onclick="guardarNuevoDT()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg">💾 Guardar Cambios</button>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">Nuevo Entrenador (DT)</label>
+            <select id="selNuevoDT" class="w-full border-2 border-slate-300 p-3.5 rounded-xl mb-6 bg-slate-50 outline-none focus:border-blue-500 font-bold text-slate-700"></select>
+            <button id="btnGuardarDT" onclick="guardarNuevoDT()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition">💾 Guardar Cambios</button>
         </div>
     </div>
 
     <!-- Módulo Coord: Dashboard Campeonato (Placeholder UI) -->
     <div id="moduloDashboardCampeonato" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center">
-            <h2 class="font-bold text-lg">🏆 Campeonato Oficial</h2>
-            <button onclick="cerrarModuloCoordinador('moduloDashboardCampeonato')" class="text-blue-200 font-bold">✕ Cerrar</button>
+        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Campeonato Oficial</h2>
+            <button onclick="cerrarModuloCoordinador('moduloDashboardCampeonato')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-4">
             <h3 class="font-black text-slate-800 text-lg mb-3">Rendimiento del Equipo</h3>
             <div class="grid grid-cols-2 gap-3 mb-6">
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border"><p class="text-4xl font-black text-slate-800">0</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Jugados</p></div>
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-4xl font-black text-green-600">0</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p></div>
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-4xl font-black text-amber-500">0</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p></div>
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-4xl font-black text-red-500">0</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p></div>
+                <div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200"><p class="text-4xl font-black text-slate-800">0</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1 tracking-wider">Partidos Jugados</p></div>
+                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-4xl font-black text-green-600">0</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1 tracking-wider">Ganados</p></div>
+                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-4xl font-black text-amber-500">0</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1 tracking-wider">Empatados</p></div>
+                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-4xl font-black text-red-500">0</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1 tracking-wider">Perdidos</p></div>
             </div>
+            <p class="text-xs text-slate-500 text-center font-bold animate-pulse mt-10">Conectando métricas desde la Base de Datos...</p>
         </div>
     </div>
 
+    <!-- Módulo Compartido: Encuentros -->
+    <div id="moduloEncuentros" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Historial Encuentros</h2>
+            <button onclick="cerrarModuloCoordinador('moduloEncuentros')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4"><div id="listaEncuentrosModulo"></div></div>
+    </div>
 
-    <!-- Módulo Profe: ARMAR SELECCIÓN (Roster Oficial) -->
+    <!-- Módulo Compartido: Asistencia -->
+    <div id="moduloAsistencia" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📋</span> Asistencia al Roster</h2>
+            <button onclick="cerrarModuloCoordinador('moduloAsistencia')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4"><div id="listaAsistenciaModulo" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"></div></div>
+    </div>
+
+
+    <!-- Módulo Profesor: ARMAR SELECCIÓN (Roster Oficial) -->
     <div id="profeRosterView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg">👥 Seleccionados</h2>
-            <button onclick="cerrarModuloProfe('profeRosterView')" class="text-blue-200 font-bold">✕</button>
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">👥</span> Seleccionados</h2>
+            <button onclick="cerrarModuloProfe('profeRosterView')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-4">
             <div class="flex justify-between items-center mb-4">
                 <p class="text-[11px] text-slate-500 font-medium leading-tight mr-4">Marque a los alumnos y asigne su dorsal (N° Camiseta).</p>
-                <button onclick="abrirModalNuevoJugador()" class="bg-blue-100 text-blue-700 text-[11px] font-bold px-3 py-2 rounded-lg shadow-sm border border-blue-200 whitespace-nowrap">+ Añadir Nuevo</button>
+                <!-- BOTÓN PARA AÑADIR NUEVO (SÍ FUNCIONA AQUÍ) -->
+                <button onclick="abrirModalNuevoJugador()" class="bg-blue-100 text-blue-700 text-[11px] font-bold px-3 py-2 rounded-lg shadow-sm border border-blue-200 whitespace-nowrap hover:bg-blue-200">+ Añadir Nuevo</button>
             </div>
             <div id="listaRosterCheckboxes" class="bg-white border rounded-xl overflow-y-auto max-h-[60vh] shadow-sm mb-6"></div>
-            <button id="btnGuardarRoster" onclick="guardarRosterFinal()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg">💾 Guardar Oficial</button>
+            <button id="btnGuardarRoster" onclick="guardarRosterFinal()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition">💾 Guardar Selección Oficial</button>
+        </div>
+    </div>
+    
+    <!-- Módulo Profesor: TOMAR ASISTENCIA -->
+    <div id="profeAsistenciaView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-amber-500 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">✅</span> Tomar Asistencia</h2>
+            <button onclick="cerrarModuloProfe('profeAsistenciaView')" class="text-amber-100 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <label class="block text-[11px] font-bold text-amber-700 uppercase mb-2">Fecha del Entrenamiento</label>
+            <input type="date" id="fechaAsistencia" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 bg-white outline-none focus:border-amber-500 font-bold text-slate-700 shadow-sm">
+            <div id="listaAsistenciaTomar" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6 max-h-[50vh] overflow-y-auto"></div>
+            <button id="btnGuardarAsist" onclick="guardarAsistenciaBD()" class="w-full bg-amber-500 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-amber-600 transition">💾 Guardar Asistencia de Hoy</button>
+        </div>
+    </div>
+
+    <!-- Módulo Profesor: ENCUENTROS -->
+    <div id="profeEncuentrosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-green-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Encuentros</h2>
+            <button onclick="cerrarModuloProfe('profeEncuentrosView')" class="text-green-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <button onclick="iniciarProgramacionPartido()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 transition mb-6 flex justify-center items-center">
+                <span class="text-xl mr-2">+</span> Programar Nuevo Partido
+            </button>
+            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Historial de Partidos</p>
+            <div id="listaEncuentrosProfe"></div>
+        </div>
+    </div>
+
+    <!-- Módulo Profesor: ESTADÍSTICAS -->
+    <div id="profeEstadisticasView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-purple-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📊</span> Rendimiento</h2>
+            <button onclick="cerrarModuloProfe('profeEstadisticasView')" class="text-purple-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <p class="text-[10px] text-slate-500 mb-3 font-bold uppercase tracking-wider text-center">Resumen de Asistencia a Entrenamientos</p>
+            <div id="listaEstadisticasProfe" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6"></div>
+        </div>
+    </div>
+
+    <!-- Sub-módulo Profesor: PROGRAMAR PARTIDO -->
+    <div id="programarPartidoView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-30">
+        <div class="bg-slate-800 text-white p-4 flex justify-between items-center mb-4 shadow-md sticky top-0">
+            <h2 class="font-bold text-lg">Nuevo Partido</h2>
+            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden');" class="text-slate-300 font-bold hover:text-white">✕ Cancelar</button>
+        </div>
+        <div id="loaderProgramar" class="text-center p-6 text-slate-500 animate-pulse">Cargando datos...</div>
+        <div id="formProgramacion" class="hidden px-4 max-w-md mx-auto pb-10">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Campeonato</label>
+            <select id="selCampeonato" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 bg-white text-sm focus:border-green-500 outline-none"></select>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Rival</label>
+            <input type="text" id="txtRival" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 text-sm focus:border-green-500 outline-none">
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Día y Hora</label>
+                    <input type="datetime-local" id="txtFecha" onchange="calcularConvocatoria()" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-xs focus:border-green-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Citación</label>
+                    <input type="datetime-local" id="txtFechaConvocatoria" class="w-full border-2 border-amber-200 bg-amber-50 p-2.5 rounded-xl text-xs focus:border-green-500 outline-none">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Lugar</label>
+                    <input type="text" id="txtLugar" class="w-full border-2 border-slate-200 p-3 rounded-xl text-sm focus:border-green-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Ref.</label>
+                    <input type="text" id="txtDireccion" class="w-full border-2 border-slate-200 p-3 rounded-xl text-sm focus:border-green-500 outline-none">
+                </div>
+            </div>
+            <div class="flex justify-between items-end mb-2 mt-4">
+                <label class="block text-[11px] font-bold text-slate-800 uppercase">Convocar Jugadores</label>
+                <span class="text-[10px] bg-green-100 text-green-800 px-2 py-1 rounded-lg font-bold"><span id="contadorConvocados">0</span> Sel.</span>
+            </div>
+            <div id="listaJugadoresConvocar" class="grid grid-cols-1 max-h-56 overflow-y-auto bg-white p-2 rounded-xl mb-6 border border-slate-200 shadow-inner"></div>
+            <button id="btnGuardarEncuentro" onclick="guardarEncuentro()" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition">💾 Programar y Generar Link</button>
+        </div>
+        
+        <div id="pantallaExito" class="hidden px-4 py-2 max-w-md mx-auto">
+            <div class="text-center mb-5 mt-4">
+                <div class="inline-flex bg-green-100 p-3 rounded-full mb-3"><svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>
+                <h3 class="font-black text-xl text-slate-800 tracking-tight">Encuentro Registrado</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 mb-5 shadow-sm">
+                <h4 class="font-bold text-slate-800 text-sm mb-1">📢 Convocatoria General</h4>
+                <div id="btnWhatsAppGrupo"></div>
+            </div>
+            <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-6 shadow-sm">
+                <h4 class="font-bold text-blue-900 text-sm mb-1">🔐 Link de Control (Privado)</h4>
+                <div class="flex mt-2">
+                    <input type="text" id="linkGenerado" readonly class="w-full border border-blue-300 p-2 rounded-l-xl text-[10px] outline-none bg-white text-blue-900 font-mono">
+                    <button onclick="copiarLink()" class="bg-blue-600 text-white px-4 rounded-r-xl font-bold text-xs hover:bg-blue-700 transition">Copiar</button>
+                </div>
+            </div>
+            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden'); cargarEncuentrosProfe();" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md">Finalizar y Volver</button>
         </div>
     </div>
 </div>
