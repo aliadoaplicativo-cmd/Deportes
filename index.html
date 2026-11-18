@@ -378,7 +378,7 @@
     }
 
     // ==========================================
-    // 3. SELECCIONADOS (FICHAS CON FOTO Y EDICIÓN)
+    // 3. SELECCIONADOS (FICHAS, EDICIÓN Y BAJA CON MOTIVO)
     // ==========================================
     async function cargarRosterProfe() {
         const grid = document.getElementById("gridSeleccionadosProfe");
@@ -517,10 +517,13 @@
         document.getElementById('ejCamiseta').value = j.camiseta || '';
         document.getElementById('ejPreviewFoto').src = j.fotoUrl;
         document.getElementById('ejInputFoto').value = "";
+        document.getElementById('ejDetalleBaja').value = "";
+        document.getElementById('bloqueMotivoBaja').classList.add('hidden');
         base64FotoEditar = "";
         document.getElementById('modalEditarJugador').classList.replace('hidden', 'flex');
     }
     function cerrarModalEditarJugador() {
+        document.getElementById('bloqueMotivoBaja').classList.add('hidden');
         document.getElementById('modalEditarJugador').classList.replace('flex', 'hidden');
     }
 
@@ -569,8 +572,12 @@
 
     async function quitarJugadorDeSeleccion() {
         const dni = document.getElementById('ejDni').value;
+        const motivoSel = document.getElementById('ejMotivoBaja').value;
+        const detalle = document.getElementById('ejDetalleBaja').value.trim();
+        const motivoFinal = detalle ? `${motivoSel}: ${detalle}` : motivoSel;
+
         const btn = document.getElementById('btnQuitarJugador');
-        btn.innerText = "Quitando...";
+        btn.innerText = "Procesando...";
         btn.disabled = true;
 
         try {
@@ -578,6 +585,7 @@
             formData.append('action', 'quitarJugadorDeSeleccion');
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             formData.append('dni', dni);
+            formData.append('motivo', motivoFinal);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const textResponse = await res.text();
@@ -594,7 +602,7 @@
         } catch (e) {
             mostrarAlerta(e.message);
         } finally {
-            btn.innerText = "🗑️ Quitar de esta Selección";
+            btn.innerText = "Confirmar Retiro";
             btn.disabled = false;
         }
     }
@@ -1017,9 +1025,25 @@
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ejNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ejApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
             </div>
+
+            <button id="btnGuardarEdicion" onclick="guardarEdicionJugador()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-2 hover:bg-blue-700 transition shadow">💾 Guardar Cambios</button>
+
+            <button onclick="document.getElementById('bloqueMotivoBaja').classList.toggle('hidden')" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl hover:bg-red-100 transition text-xs">🗑️ Quitar de esta Selección</button>
+
+            <div id="bloqueMotivoBaja" class="hidden p-3 bg-red-50 border border-red-200 rounded-xl space-y-2">
+                <label class="block text-[10px] font-bold text-red-700 uppercase">Motivo de salida</label>
+                <select id="ejMotivoBaja" class="w-full border border-red-200 p-2 rounded-lg text-xs font-bold bg-white">
+                    <option value="Lesión">Lesión</option>
+                    <option value="Rendimiento deportivo">Rendimiento deportivo</option>
+                    <option value="Inasistencias">Inasistencias</option>
+                    <option value="Disciplina">Disciplina</option>
+                    <option value="Retiro voluntario">Retiro voluntario</option>
+                    <option value="Otro">Otro</option>
+                </select>
+                <input type="text" id="ejDetalleBaja" placeholder="Detalle opcional..." class="w-full border border-red-200 p-2 rounded-lg text-xs bg-white">
+                <button id="btnQuitarJugador" onclick="quitarJugadorDeSeleccion()" class="w-full bg-red-600 text-white font-bold py-2.5 rounded-lg text-xs hover:bg-red-700 transition">Confirmar Retiro</button>
+            </div>
         </div>
-        <button id="btnGuardarEdicion" onclick="guardarEdicionJugador()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-4 hover:bg-blue-700 transition shadow">💾 Guardar Cambios</button>
-        <button id="btnQuitarJugador" onclick="quitarJugadorDeSeleccion()" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl mt-2 hover:bg-red-100 transition text-xs">🗑️ Quitar de esta Selección</button>
     </div>
 </div>
 
