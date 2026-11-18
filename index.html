@@ -9,52 +9,85 @@
 <body class="bg-gray-100 p-4 font-sans text-slate-800">
 
 <script>
-    // TU URL DE APPS SCRIPT
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
-    const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html"; 
+    const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html";
 
-    let estadoGlobal = { idColegio: "", dniLogueado: "", rol: "", idEquipoSeleccionado: "", seleccionesCoordinador: [], equiposProfesor: [], dnisConvocados: [] };
+    let estadoGlobal = {
+        idColegio: "",
+        dniLogueado: "",
+        rol: "",
+        idEquipoSeleccionado: "",
+        seleccionesCoordinador: [],
+        equiposProfesor: [],
+        dnisConvocados: []
+    };
 
-    // --- SISTEMA DE ALERTAS ---
+    let rosterActual = { seleccionados: [], disponibles: [] };
+    let base64FotoNuevo = "";
+    let base64FotoEditar = "";
+
+    // ==========================================
+    // ALERTAS MODERNAS
+    // ==========================================
     function mostrarAlerta(mensaje) {
-        document.getElementById('alertaMensaje').innerText = mensaje;
+        document.getElementById('alertaMensaje').innerText = mensaje || "Aviso del sistema.";
         document.getElementById('alertaModern').classList.replace('hidden', 'flex');
     }
-    function cerrarAlerta() { document.getElementById('alertaModern').classList.replace('flex', 'hidden'); }
-
-    // --- LOGIN ---
-    async function iniciarSesion() {
-        const dni = document.getElementById("dniLogin").value;
-        if (!dni) return mostrarAlerta("Por favor, ingrese su DNI.");
-        document.getElementById("btnCargar").innerText = "Validando...";
-        try {
-            const res = await fetch(`${URL_BACKEND}?action=iniciarSesion&dni=${dni}`);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            
-            estadoGlobal.dniLogueado = data.dni; estadoGlobal.rol = data.rol; estadoGlobal.idColegio = data.idColegio;
-            document.getElementById("loginView").classList.add("hidden");
-            
-            if (data.rol === 'Coordinador') cargarMenuCoordinador();
-            else if (data.rol === 'Profesor') cargarMenuProfesor();
-        } catch (error) { mostrarAlerta(error.message); document.getElementById("btnCargar").innerText = "Ingresar al Panel"; }
+    function cerrarAlerta() {
+        document.getElementById('alertaModern').classList.replace('flex', 'hidden');
     }
 
     // ==========================================
-    // 1. FLUJOS DEL COORDINADOR (Gerencia)
+    // LOGIN
+    // ==========================================
+    async function iniciarSesion() {
+        const dni = document.getElementById("dniLogin").value.trim();
+        if (!dni) return mostrarAlerta("Por favor, ingrese su DNI.");
+        const btn = document.getElementById("btnCargar");
+        btn.innerText = "Validando...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=iniciarSesion&dni=${encodeURIComponent(dni)}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            estadoGlobal.dniLogueado = data.dni;
+            estadoGlobal.rol = data.rol;
+            estadoGlobal.idColegio = data.idColegio;
+
+            document.getElementById("loginView").classList.add("hidden");
+
+            if (data.rol === 'Coordinador') cargarMenuCoordinador();
+            else if (data.rol === 'Profesor') cargarMenuProfesor();
+            else throw new Error("Rol no reconocido.");
+        } catch (error) {
+            mostrarAlerta(error.message);
+            btn.innerText = "Ingresar al Panel";
+            btn.disabled = false;
+        }
+    }
+
+    // ==========================================
+    // 1. FLUJOS DEL COORDINADOR
     // ==========================================
     async function cargarMenuCoordinador() {
         document.getElementById("coordinadorMainView").classList.remove("hidden");
         document.getElementById("contenedorSelecciones").innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando selecciones...</p>";
-        
+
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerPanelCoordinador&idColegio=${estadoGlobal.idColegio}`);
+            const res = await fetch(`${URL_BACKEND}?action=obtenerPanelCoordinador&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            estadoGlobal.seleccionesCoordinador = data.selecciones;
-            
-            let htmlBotones = "";
-            data.selecciones.forEach(sel => {
-                htmlBotones += `
+            estadoGlobal.seleccionesCoordinador = data.selecciones || [];
+
+            if (estadoGlobal.seleccionesCoordinador.length === 0) {
+                document.getElementById("contenedorSelecciones").innerHTML = "<p class='text-center text-slate-500 my-10'>Aún no hay selecciones creadas.</p>";
+                return;
+            }
+
+            let html = "";
+            estadoGlobal.seleccionesCoordinador.forEach(sel => {
+                html += `
                     <button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
                         <div>
                             <h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3>
@@ -65,120 +98,215 @@
                         </div>
                     </button>`;
             });
-            document.getElementById("contenedorSelecciones").innerHTML = htmlBotones;
-        } catch (error) { document.getElementById("contenedorSelecciones").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
+            document.getElementById("contenedorSelecciones").innerHTML = html;
+        } catch (error) {
+            document.getElementById("contenedorSelecciones").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`;
+        }
     }
 
     function abrirDashboardCoordinador(idEquipo) {
         const sel = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === idEquipo);
         estadoGlobal.idEquipoSeleccionado = idEquipo;
-        
-        document.getElementById("coordinadorMainView").classList.add("hidden"); 
+
+        document.getElementById("coordinadorMainView").classList.add("hidden");
         document.getElementById("dashboardCoordinadorView").classList.remove("hidden");
-        
-        document.getElementById("dashCoordNombreEquipo").innerText = sel.nombreEquipo; 
-        document.getElementById("dashCoordCategoriaEquipo").innerText = sel.categoria; 
+
+        document.getElementById("dashCoordNombreEquipo").innerText = sel.nombreEquipo;
+        document.getElementById("dashCoordCategoriaEquipo").innerText = sel.categoria;
         document.getElementById("dashCoordNombreDT").innerText = sel.profesor;
-        document.getElementById("dashCoordWspDT").innerHTML = sel.telefonoWsp ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center hover:bg-green-200 transition">💬 Wsp</a>` : "";
+        document.getElementById("dashCoordWspDT").innerHTML = sel.telefonoWsp
+            ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center hover:bg-green-200 transition text-xs font-bold">💬 Wsp</a>`
+            : "";
     }
-    
-    function volverAMenuCoordinador() { 
-        document.getElementById("dashboardCoordinadorView").classList.add("hidden"); 
-        document.getElementById("coordinadorMainView").classList.remove("hidden"); 
+
+    function volverAMenuCoordinador() {
+        document.getElementById("dashboardCoordinadorView").classList.add("hidden");
+        document.getElementById("coordinadorMainView").classList.remove("hidden");
     }
 
     function abrirModuloCoordinador(moduloID) {
         document.getElementById("dashboardCoordinadorView").classList.add("hidden");
-        ['moduloJugadores', 'moduloEncuentros', 'moduloAsistencia', 'moduloDT', 'moduloDashboardCampeonato'].forEach(id => document.getElementById(id).classList.add("hidden"));
+        ['moduloJugadores', 'moduloEncuentros', 'moduloAsistencia', 'moduloDT', 'moduloDashboardCampeonato'].forEach(id => {
+            document.getElementById(id).classList.add("hidden");
+        });
         document.getElementById(moduloID).classList.remove("hidden");
-        
+
         if (moduloID === 'moduloJugadores') cargarModuloJugadores();
         if (moduloID === 'moduloDT') cargarModuloDT();
         if (moduloID === 'moduloEncuentros') cargarModuloEncuentros('listaEncuentrosModulo');
         if (moduloID === 'moduloAsistencia') cargarModuloAsistencia('listaAsistenciaModulo');
     }
 
-    function cerrarModuloCoordinador(moduloID) { 
-        document.getElementById(moduloID).classList.add("hidden"); 
-        document.getElementById("dashboardCoordinadorView").classList.remove("hidden"); 
+    function cerrarModuloCoordinador(moduloID) {
+        document.getElementById(moduloID).classList.add("hidden");
+        document.getElementById("dashboardCoordinadorView").classList.remove("hidden");
     }
 
-    // Modal Crear Selección (Coordinador)
-    function abrirModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex'); }
-    function cerrarModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden'); }
-    
-    async function guardarNuevaSeleccion() {
-        const nombre = document.getElementById("nsNombre").value;
-        let cats = []; document.querySelectorAll('.check-categoria:checked').forEach(chk => cats.push(chk.value));
-        if(!nombre || cats.length === 0) return mostrarAlerta("Ingrese el nombre y seleccione al menos una categoría.");
+    // --- Modal Crear Selección Combinada ---
+    function abrirModalCrearSeleccion() {
+        document.getElementById("nsNombre").value = "";
+        document.querySelectorAll('.check-categoria').forEach(chk => chk.checked = false);
+        document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalCrearSeleccion() {
+        document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden');
+    }
 
-        const btn = document.getElementById("btnGuardarSeleccion"); btn.innerText = "Creando..."; btn.disabled = true;
+    async function guardarNuevaSeleccion() {
+        const nombre = document.getElementById("nsNombre").value.trim();
+        let cats = [];
+        document.querySelectorAll('.check-categoria:checked').forEach(chk => cats.push(chk.value));
+        if (!nombre || cats.length === 0) return mostrarAlerta("Ingrese el nombre y seleccione al menos una categoría.");
+
+        const btn = document.getElementById("btnGuardarSeleccion");
+        btn.innerText = "Creando...";
+        btn.disabled = true;
+
         try {
-            const formData = new URLSearchParams(); formData.append('action', 'crearSeleccion'); formData.append('nombre', nombre); formData.append('categorias', cats.join(', ')); formData.append('idColegio', estadoGlobal.idColegio);
+            const formData = new URLSearchParams();
+            formData.append('action', 'crearSeleccion');
+            formData.append('nombre', nombre);
+            formData.append('categorias', cats.join(', '));
+            formData.append('idColegio', estadoGlobal.idColegio);
+
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            
             const textResponse = await res.text();
             let data;
-            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor."); }
+            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
 
-            if(data.exito) { mostrarAlerta(data.mensaje); cerrarModalCrearSeleccion(); cargarMenuCoordinador(); } else throw new Error(data.error || "Error desconocido");
-        } catch (e) { mostrarAlerta(e.message); }
-        btn.innerText = "Crear Selección"; btn.disabled = false;
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalCrearSeleccion();
+                cargarMenuCoordinador();
+            } else {
+                throw new Error(data.error || "Error al crear selección.");
+            }
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "Crear Selección";
+            btn.disabled = false;
+        }
     }
 
-    // Modal Nuevo Entrenador (Coordinador)
+    // --- Modal Registrar Nuevo DT ---
     function abrirModalNuevoDT() {
-        document.getElementById('ndtDni').value = ""; document.getElementById('ndtNombres').value = ""; document.getElementById('ndtApellidos').value = ""; document.getElementById('ndtTelefono').value = "";
+        ['ndtDni', 'ndtNombres', 'ndtApellidos', 'ndtTelefono'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('modalNuevoDT').classList.replace('hidden', 'flex');
     }
-    function cerrarModalNuevoDT() { document.getElementById('modalNuevoDT').classList.replace('flex', 'hidden'); }
-    
+    function cerrarModalNuevoDT() {
+        document.getElementById('modalNuevoDT').classList.replace('flex', 'hidden');
+    }
+
     async function guardarNuevoDTBackend() {
-        const dni = document.getElementById('ndtDni').value, nom = document.getElementById('ndtNombres').value, ap = document.getElementById('ndtApellidos').value, tel = document.getElementById('ndtTelefono').value;
-        if(!dni || !nom || !ap) return mostrarAlerta("Complete DNI, Nombres y Apellidos.");
-        
-        const btn = document.getElementById('btnGuardarNuevoDTBackend'); btn.innerText = "Guardando..."; btn.disabled = true;
+        const dni = document.getElementById('ndtDni').value.trim();
+        const nom = document.getElementById('ndtNombres').value.trim();
+        const ap = document.getElementById('ndtApellidos').value.trim();
+        const tel = document.getElementById('ndtTelefono').value.trim();
+        if (!dni || !nom || !ap) return mostrarAlerta("Complete DNI, Nombres y Apellidos.");
+
+        const btn = document.getElementById('btnGuardarNuevoDTBackend');
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
+
         try {
-            const formData = new URLSearchParams(); formData.append('action', 'registrarNuevoProfesor'); formData.append('dni', dni); formData.append('nombres', nom); formData.append('apellidos', ap); formData.append('telefono', tel); formData.append('idColegio', estadoGlobal.idColegio);
+            const formData = new URLSearchParams();
+            formData.append('action', 'registrarNuevoProfesor');
+            formData.append('dni', dni);
+            formData.append('nombres', nom);
+            formData.append('apellidos', ap);
+            formData.append('telefono', tel);
+            formData.append('idColegio', estadoGlobal.idColegio);
+
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            
             const textResponse = await res.text();
             let data;
-            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor: " + textResponse.substring(0, 50)); }
+            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
 
-            if(data.exito) { 
-                mostrarAlerta(data.mensaje || "Operación exitosa"); cerrarModalNuevoDT(); cargarModuloDT(); 
-            } else throw new Error(data.error || "Error desconocido");
-        } catch(e) { mostrarAlerta(e.message); }
-        btn.innerText = "Registrar Entrenador"; btn.disabled = false;
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalNuevoDT();
+                cargarModuloDT();
+            } else {
+                throw new Error(data.error || "Error al registrar DT.");
+            }
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "Registrar Entrenador";
+            btn.disabled = false;
+        }
     }
 
     async function cargarModuloDT() {
-        const sel = document.getElementById("selNuevoDT"); sel.innerHTML = "<option value=''>Cargando profesores...</option>";
+        const sel = document.getElementById("selNuevoDT");
+        sel.innerHTML = "<option value=''>Cargando profesores...</option>";
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerProfesores&idColegio=${estadoGlobal.idColegio}`);
+            const res = await fetch(`${URL_BACKEND}?action=obtenerProfesores&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
             let html = "<option value=''>Seleccione un Profesor...</option>";
-            data.profesores.forEach(p => html += `<option value="${p.dni}">${p.nombre}</option>`); sel.innerHTML = html;
-        } catch(e) {}
+            (data.profesores || []).forEach(p => html += `<option value="${p.dni}">${p.nombre}</option>`);
+            sel.innerHTML = html;
+        } catch (e) {
+            sel.innerHTML = "<option value=''>Error al cargar</option>";
+        }
     }
-    
+
     function guardarNuevoDT() {
-        const dniProfesor = document.getElementById("selNuevoDT").value; if(!dniProfesor) return mostrarAlerta("Seleccione un profesor de la lista.");
-        const btn = document.getElementById("btnGuardarDT"); btn.innerText = "Guardando..."; btn.disabled = true;
+        const dniProfesor = document.getElementById("selNuevoDT").value;
+        if (!dniProfesor) return mostrarAlerta("Seleccione un profesor de la lista.");
+        const btn = document.getElementById("btnGuardarDT");
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
+
         const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
         window[callbackName] = function(data) {
-            if(data.exito) {
-                estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado).profesor = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text; 
-                mostrarAlerta("Entrenador asignado con éxito"); cerrarModuloCoordinador('moduloDT'); abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado); 
-            } else { mostrarAlerta("Error al actualizar"); }
-            btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; delete window[callbackName];
+            if (data.exito) {
+                const eq = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado);
+                if (eq) eq.profesor = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text;
+                mostrarAlerta("Entrenador asignado con éxito.");
+                cerrarModuloCoordinador('moduloDT');
+                abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado);
+            } else {
+                mostrarAlerta(data.error || "Error al actualizar.");
+            }
+            btn.innerText = "💾 Guardar Cambios";
+            btn.disabled = false;
+            delete window[callbackName];
         };
+
         const scriptGuardar = document.createElement('script');
         scriptGuardar.src = `${URL_BACKEND}?action=asignarProfesorEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&dniProfesor=${encodeURIComponent(dniProfesor)}&callback=${callbackName}`;
         document.body.appendChild(scriptGuardar);
     }
 
+    async function cargarModuloJugadores() {
+        const contenedor = document.getElementById("listaJugadoresModulo");
+        contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 animate-pulse my-10'>Cargando plantilla...</p>";
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
+            const data = await res.json();
+            if (!data.jugadores || data.jugadores.length === 0) {
+                contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Sin jugadores oficiales.</p>";
+                return;
+            }
+            let html = "";
+            data.jugadores.forEach(j => {
+                html += `
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
+                    <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span>
+                    <img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100">
+                    <div class="p-3 text-center">
+                        <p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p>
+                        <p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p>
+                    </div>
+                </div>`;
+            });
+            contenedor.innerHTML = html;
+        } catch (e) {
+            contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>";
+        }
+    }
 
     // ==========================================
     // 2. FLUJOS DEL PROFESOR / DT
@@ -186,12 +314,19 @@
     async function cargarMenuProfesor() {
         document.getElementById("profesorMainView").classList.remove("hidden");
         document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando sus equipos...</p>";
+
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerEquipos&dni=${estadoGlobal.dniLogueado}`);
+            const res = await fetch(`${URL_BACKEND}?action=obtenerEquipos&dni=${encodeURIComponent(estadoGlobal.dniLogueado)}`);
             const data = await res.json();
-            estadoGlobal.equiposProfesor = data.datos;
+            estadoGlobal.equiposProfesor = data.datos || [];
+
+            if (estadoGlobal.equiposProfesor.length === 0) {
+                document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10'>No tiene equipos asignados aún.</p>";
+                return;
+            }
+
             let html = "";
-            data.datos.forEach(eq => {
+            estadoGlobal.equiposProfesor.forEach(eq => {
                 html += `
                     <button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
                         <div>
@@ -204,255 +339,485 @@
                     </button>`;
             });
             document.getElementById("contenedorEquiposProfesor").innerHTML = html;
-        } catch (error) { document.getElementById("contenedorEquiposProfesor").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
+        } catch (error) {
+            document.getElementById("contenedorEquiposProfesor").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`;
+        }
     }
 
     function abrirDashboardProfesor(idEquipo) {
-        const eq = estadoGlobal.equiposProfesor.find(e => e.idEquipo === idEquipo); 
+        const eq = estadoGlobal.equiposProfesor.find(e => e.idEquipo === idEquipo);
         estadoGlobal.idEquipoSeleccionado = idEquipo;
-        
-        document.getElementById("profesorMainView").classList.add("hidden"); 
+
+        document.getElementById("profesorMainView").classList.add("hidden");
         document.getElementById("dashboardProfesorView").classList.remove("hidden");
-        
-        document.getElementById("dashProfeNombreEquipo").innerText = eq.nombreEquipo; 
+        document.getElementById("dashProfeNombreEquipo").innerText = eq.nombreEquipo;
         document.getElementById("dashProfeCategoriaEquipo").innerText = eq.categoria;
     }
-    
-    function volverAMenuProfesor() { 
-        document.getElementById("dashboardProfesorView").classList.add("hidden"); 
-        document.getElementById("profesorMainView").classList.remove("hidden"); 
+
+    function volverAMenuProfesor() {
+        document.getElementById("dashboardProfesorView").classList.add("hidden");
+        document.getElementById("profesorMainView").classList.remove("hidden");
     }
 
-    // --- NAVEGACIÓN ENTRE MÓDULOS DEL PROFESOR ---
     function abrirModuloProfe(moduloID) {
         document.getElementById("dashboardProfesorView").classList.add("hidden");
-        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView', 'profeEstadisticasView', 'programarPartidoView'].forEach(id => document.getElementById(id).classList.add("hidden"));
+        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView', 'profeEstadisticasView', 'programarPartidoView'].forEach(id => {
+            document.getElementById(id).classList.add("hidden");
+        });
         document.getElementById(moduloID).classList.remove("hidden");
-        
+
         if (moduloID === 'profeRosterView') cargarRosterProfe();
         if (moduloID === 'profeAsistenciaView') cargarListaAsistencia();
         if (moduloID === 'profeEncuentrosView') cargarModuloEncuentros('listaEncuentrosProfe');
         if (moduloID === 'profeEstadisticasView') cargarModuloAsistencia('listaEstadisticasProfe');
     }
-    function cerrarModuloProfe(moduloID) { 
-        document.getElementById(moduloID).classList.add("hidden"); 
-        document.getElementById("dashboardProfesorView").classList.remove("hidden"); 
+
+    function cerrarModuloProfe(moduloID) {
+        document.getElementById(moduloID).classList.add("hidden");
+        document.getElementById("dashboardProfesorView").classList.remove("hidden");
     }
 
-    // --- Módulo: ARMAR SELECCION (Profesor) ---
+    // ==========================================
+    // 3. SELECCIONADOS (FICHAS CON FOTO Y EDICIÓN)
+    // ==========================================
     async function cargarRosterProfe() {
-        const contenedor = document.getElementById("listaRosterCheckboxes");
-        contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Buscando alumnos...</p>";
+        const grid = document.getElementById("gridSeleccionadosProfe");
+        grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 animate-pulse'>Cargando plantilla...</p>";
+
         try {
             const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
-            const res = await fetch(`${URL_BACKEND}?action=obtenerRoster&idEquipo=${estadoGlobal.idEquipoSeleccionado}&grados=${eqInfo.categoria}&idColegio=${estadoGlobal.idColegio}`);
+            const res = await fetch(`${URL_BACKEND}?action=obtenerRoster&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&grados=${encodeURIComponent(eqInfo.categoria)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            let html = "";
-            data.seleccionados.forEach(j => html += crearFilaRoster(j, true));
-            data.disponibles.forEach(j => html += crearFilaRoster(j, false));
-            contenedor.innerHTML = html || "<p class='text-center text-slate-500 my-4 text-xs'>No hay alumnos en estas categorías.</p>";
-        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>"; }
-    }
+            rosterActual = {
+                seleccionados: data.seleccionados || [],
+                disponibles: data.disponibles || []
+            };
 
-    function crearFilaRoster(jugador, marcado) {
-        const chk = marcado ? 'checked' : '';
-        return `
-        <div class="flex items-center justify-between p-3 border-b border-slate-100 bg-white hover:bg-slate-50 roster-item" data-dni="${jugador.dni}">
-            <label class="flex items-center cursor-pointer w-2/3">
-                <input type="checkbox" class="check-roster w-5 h-5 text-blue-600 rounded mr-3" ${chk}>
-                <div>
-                    <div class="font-bold text-sm text-slate-700">${jugador.nombre}</div>
-                    <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">${jugador.grado}</div>
-                </div>
-            </label>
-            <div class="flex flex-col items-center w-1/3 pl-2">
-                <label class="text-[9px] text-slate-500 uppercase font-bold">Dorsal</label>
-                <input type="number" class="input-camiseta w-full border border-slate-300 rounded p-1 text-center font-bold text-sm outline-none focus:border-blue-500" placeholder="N°" value="${jugador.camiseta || ''}">
-            </div>
-        </div>`;
-    }
-
-    async function guardarRosterFinal() {
-        let datosSeleccionados = []; 
-        document.querySelectorAll('.roster-item').forEach(item => {
-            const chk = item.querySelector('.check-roster');
-            if (chk.checked) {
-                datosSeleccionados.push({
-                    dni: item.getAttribute('data-dni'),
-                    camiseta: item.querySelector('.input-camiseta').value
-                });
+            if (rosterActual.seleccionados.length === 0) {
+                grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 text-xs'>Aún no hay jugadores en esta selección. Usa los botones de arriba para agregar.</p>";
+                return;
             }
-        });
-        const btn = document.getElementById("btnGuardarRoster"); btn.innerText = "Guardando..."; btn.disabled = true;
 
-        try {
-            const formData = new URLSearchParams(); formData.append('action', 'guardarRosterConCamisetas'); formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado); formData.append('datosJugadores', JSON.stringify(datosSeleccionados));
-            
-            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor."); }
-
-            if(data.error) throw new Error(data.error);
-            mostrarAlerta(data.mensaje || "Operación exitosa"); 
-            btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;
-            cerrarModuloProfe('profeRosterView');
-        } catch (e) { mostrarAlerta(e.message); btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;}
+            let html = "";
+            rosterActual.seleccionados.forEach(j => {
+                html += `
+                <div onclick="abrirModalEditarJugador('${j.dni}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative cursor-pointer hover:shadow-md active:scale-95 transition">
+                    <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2.5 py-1 text-xs rounded-bl-xl z-10">${j.camiseta || '-'}</span>
+                    <span class="absolute top-2 left-2 bg-white/90 text-slate-700 p-1 rounded-full text-[10px] shadow">✏️</span>
+                    <img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100">
+                    <div class="p-3 text-center">
+                        <p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p>
+                        <p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p>
+                    </div>
+                </div>`;
+            });
+            grid.innerHTML = html;
+        } catch (e) {
+            grid.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>";
+        }
     }
 
-    // Modal Nuevo Jugador (con FOTO comprimida en celular)
-    let base64FotoJugador = ""; 
-    function abrirModalNuevoJugador() {
-        const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
-        let htmlGrados = ""; eqInfo.categoria.split(',').forEach(g => htmlGrados += `<option value="${g.trim()}">${g.trim()}</option>`);
-        document.getElementById('njGrado').innerHTML = htmlGrados;
-        
-        document.getElementById('njDni').value = ""; document.getElementById('njNombres').value = ""; document.getElementById('njApellidos').value = "";
-        document.getElementById('njInputFoto').value = ""; document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Subir+Foto";
-        base64FotoJugador = ""; document.getElementById('modalNuevoJugador').classList.replace('hidden', 'flex');
-    }
-    function cerrarModalNuevoJugador() { document.getElementById('modalNuevoJugador').classList.replace('flex', 'hidden'); }
-
-    function procesarFotoSubida(event) {
-        const file = event.target.files[0]; if(!file) return;
+    function procesarFotoSubida(event, imgPreviewId, modo) {
+        const file = event.target.files[0];
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             const img = new Image();
             img.onload = function() {
-                const canvas = document.createElement('canvas'); const scaleSize = 300 / img.width; canvas.width = 300; canvas.height = img.height * scaleSize;
+                const canvas = document.createElement('canvas');
+                const scaleSize = 300 / img.width;
+                canvas.width = 300;
+                canvas.height = img.height * scaleSize;
                 canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-                base64FotoJugador = canvas.toDataURL('image/jpeg', 0.6); document.getElementById('previewFoto').src = base64FotoJugador;
+                const compressed = canvas.toDataURL('image/jpeg', 0.65);
+                if (modo === 'nuevo') base64FotoNuevo = compressed;
+                else base64FotoEditar = compressed;
+                document.getElementById(imgPreviewId).src = compressed;
             };
             img.src = e.target.result;
         };
         reader.readAsDataURL(file);
     }
 
+    // --- Modal Nuevo Jugador ---
+    function abrirModalNuevoJugador() {
+        const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
+        let htmlGrados = "";
+        eqInfo.categoria.split(',').forEach(g => htmlGrados += `<option value="${g.trim()}">${g.trim()}</option>`);
+        document.getElementById('njGrado').innerHTML = htmlGrados;
+
+        ['njDni', 'njNombres', 'njApellidos', 'njCamiseta', 'njInputFoto'].forEach(id => document.getElementById(id).value = "");
+        document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Foto";
+        base64FotoNuevo = "";
+        document.getElementById('modalNuevoJugador').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalNuevoJugador() {
+        document.getElementById('modalNuevoJugador').classList.replace('flex', 'hidden');
+    }
+
     async function guardarNuevoJugador() {
-        const dni = document.getElementById('njDni').value, nom = document.getElementById('njNombres').value, ap = document.getElementById('njApellidos').value, gr = document.getElementById('njGrado').value;
-        if(!dni || !nom) return mostrarAlerta("Complete DNI y Nombres.");
-        const btn = document.getElementById('btnGuardarNuevoJugador'); btn.innerText = "Guardando..."; btn.disabled = true;
+        const dni = document.getElementById('njDni').value.trim();
+        const nom = document.getElementById('njNombres').value.trim();
+        const ap = document.getElementById('njApellidos').value.trim();
+        const gr = document.getElementById('njGrado').value;
+        const cam = document.getElementById('njCamiseta').value.trim();
+        if (!dni || !nom) return mostrarAlerta("Complete DNI y Nombres.");
+
+        const btn = document.getElementById('btnGuardarNuevoJugador');
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
 
         try {
-            const formData = new URLSearchParams(); formData.append('action', 'registrarNuevoJugador'); formData.append('dni', dni); formData.append('nombres', nom); formData.append('apellidos', ap); formData.append('grado', gr); formData.append('idColegio', estadoGlobal.idColegio);
-            if(base64FotoJugador) formData.append('fotoBase64', base64FotoJugador);
-            
+            const formData = new URLSearchParams();
+            formData.append('action', 'registrarNuevoJugador');
+            formData.append('dni', dni);
+            formData.append('nombres', nom);
+            formData.append('apellidos', ap);
+            formData.append('grado', gr);
+            formData.append('camiseta', cam);
+            formData.append('idColegio', estadoGlobal.idColegio);
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            if (base64FotoNuevo) formData.append('fotoBase64', base64FotoNuevo);
+
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const textResponse = await res.text();
             let data;
-            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor."); }
+            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
 
-            if(data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoJugador(); cargarRosterProfe(); } else throw new Error(data.error || "Error desconocido");
-        } catch(e) { mostrarAlerta(e.message); }
-        btn.innerText = "Registrar Jugador"; btn.disabled = false;
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalNuevoJugador();
+                cargarRosterProfe();
+            } else {
+                throw new Error(data.error || "Error al registrar.");
+            }
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "Registrar y Agregar";
+            btn.disabled = false;
+        }
     }
 
-    // --- Módulo Compartido: JUGADORES (Coordinador) ---
-    async function cargarModuloJugadores() {
-        const contenedor = document.getElementById("listaJugadoresModulo"); contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 animate-pulse my-10'>Cargando plantilla...</p>";
+    // --- Modal Editar Ficha de Jugador ---
+    function abrirModalEditarJugador(dni) {
+        const j = rosterActual.seleccionados.find(x => x.dni == dni);
+        if (!j) return;
+
+        const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
+        let htmlGrados = "";
+        eqInfo.categoria.split(',').forEach(g => {
+            const gt = g.trim();
+            htmlGrados += `<option value="${gt}" ${gt === j.grado ? 'selected' : ''}>${gt}</option>`;
+        });
+        document.getElementById('ejGrado').innerHTML = htmlGrados;
+        document.getElementById('ejDni').value = j.dni;
+        document.getElementById('ejNombres').value = j.nombres;
+        document.getElementById('ejApellidos').value = j.apellidos;
+        document.getElementById('ejCamiseta').value = j.camiseta || '';
+        document.getElementById('ejPreviewFoto').src = j.fotoUrl;
+        document.getElementById('ejInputFoto').value = "";
+        base64FotoEditar = "";
+        document.getElementById('modalEditarJugador').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalEditarJugador() {
+        document.getElementById('modalEditarJugador').classList.replace('flex', 'hidden');
+    }
+
+    async function guardarEdicionJugador() {
+        const dni = document.getElementById('ejDni').value;
+        const nom = document.getElementById('ejNombres').value.trim();
+        const ap = document.getElementById('ejApellidos').value.trim();
+        const gr = document.getElementById('ejGrado').value;
+        const cam = document.getElementById('ejCamiseta').value.trim();
+        if (!nom) return mostrarAlerta("El nombre no puede estar vacío.");
+
+        const btn = document.getElementById('btnGuardarEdicion');
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
+
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
-            const data = await res.json();
-            if(!data.jugadores || data.jugadores.length === 0) return contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Sin jugadores oficiales.</p>";
+            const formData = new URLSearchParams();
+            formData.append('action', 'editarJugador');
+            formData.append('dni', dni);
+            formData.append('nombres', nom);
+            formData.append('apellidos', ap);
+            formData.append('grado', gr);
+            formData.append('camiseta', cam);
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            if (base64FotoEditar) formData.append('fotoBase64', base64FotoEditar);
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
+
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalEditarJugador();
+                cargarRosterProfe();
+            } else {
+                throw new Error(data.error || "Error al actualizar.");
+            }
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "💾 Guardar Cambios";
+            btn.disabled = false;
+        }
+    }
+
+    async function quitarJugadorDeSeleccion() {
+        const dni = document.getElementById('ejDni').value;
+        const btn = document.getElementById('btnQuitarJugador');
+        btn.innerText = "Quitando...";
+        btn.disabled = true;
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'quitarJugadorDeSeleccion');
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('dni', dni);
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
+
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalEditarJugador();
+                cargarRosterProfe();
+            } else {
+                throw new Error(data.error || "Error al quitar jugador.");
+            }
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "🗑️ Quitar de esta Selección";
+            btn.disabled = false;
+        }
+    }
+
+    // --- Modal Traer Jugadores Existentes ---
+    function abrirModalAgregarExistente() {
+        const cont = document.getElementById("listaDisponiblesModal");
+        if (rosterActual.disponibles.length === 0) {
+            cont.innerHTML = "<p class='text-center text-slate-400 text-xs py-6'>No hay más alumnos disponibles en estos grados.</p>";
+        } else {
             let html = "";
-            data.jugadores.forEach(j => {
-                html += `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p></div></div>`;
+            rosterActual.disponibles.forEach(j => {
+                html += `
+                <div class="flex items-center justify-between py-3">
+                    <div class="flex items-center gap-3">
+                        <img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover bg-slate-100">
+                        <div>
+                            <p class="font-bold text-sm text-slate-800 leading-tight">${j.nombre}</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">${j.grado}</p>
+                        </div>
+                    </div>
+                    <button onclick="agregarExistenteAlEquipo('${j.dni}', '${j.camiseta || ''}', this)" class="bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-lg hover:bg-blue-200 transition">+ Sumar</button>
+                </div>`;
             });
-            contenedor.innerHTML = html;
-        } catch(e) { contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
+            cont.innerHTML = html;
+        }
+        document.getElementById('modalAgregarExistente').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalAgregarExistente() {
+        document.getElementById('modalAgregarExistente').classList.replace('flex', 'hidden');
     }
 
-    // --- Módulo Compartido: ENCUENTROS ---
-    async function cargarModuloEncuentros(contenedorID) {
-        const contenedor = document.getElementById(contenedorID); contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Cargando partidos...</p>";
+    async function agregarExistenteAlEquipo(dni, camiseta, btn) {
+        btn.innerText = "...";
+        btn.disabled = true;
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerEncuentrosEquipoCoordinador&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const formData = new URLSearchParams();
+            formData.append('action', 'agregarJugadorASeleccion');
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('dni', dni);
+            formData.append('camiseta', camiseta);
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito) {
+                btn.innerText = "✓ Listo";
+                btn.classList.replace('bg-blue-100', 'bg-green-100');
+                btn.classList.replace('text-blue-700', 'text-green-700');
+                cargarRosterProfe();
+            } else {
+                btn.innerText = "+ Sumar";
+                btn.disabled = false;
+            }
+        } catch (e) {
+            btn.innerText = "+ Sumar";
+            btn.disabled = false;
+        }
+    }
+
+    // ==========================================
+    // 4. ASISTENCIA, ENCUENTROS Y ESTADÍSTICAS
+    // ==========================================
+    async function cargarModuloEncuentros(contenedorID) {
+        const contenedor = document.getElementById(contenedorID);
+        contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Cargando partidos...</p>";
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerEncuentrosEquipoCoordinador&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
-            if(!data.encuentros || data.encuentros.length === 0) return contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>No hay encuentros programados.</p>";
-            const formatDate = (dateStr) => { const d = new Date(dateStr); return d.toLocaleString('es-PE', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}); };
+            if (!data.encuentros || data.encuentros.length === 0) {
+                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>No hay encuentros programados.</p>";
+                return;
+            }
+            const formatDate = (dateStr) => {
+                const d = new Date(dateStr);
+                return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            };
             let html = "";
             data.encuentros.forEach(e => {
-                let badgeEstado = e.estado === 'Activo' ? '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>' : '<span class="bg-slate-200 text-slate-600 px-2 py-1 rounded text-[10px] font-bold">CERRADO</span>';
-                html += `<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3"><div class="absolute top-4 right-4">${badgeEstado}</div><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">vs Rival</p><h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-3 pr-16">${e.rival}</h3><div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div><div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div></div>`;
+                const badgeEstado = e.estado === 'Activo'
+                    ? '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>'
+                    : '<span class="bg-slate-200 text-slate-600 px-2 py-1 rounded text-[10px] font-bold">CERRADO</span>';
+                html += `
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3">
+                    <div class="absolute top-4 right-4">${badgeEstado}</div>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">vs Rival</p>
+                    <h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-3 pr-16">${e.rival}</h3>
+                    <div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div>
+                    <div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div>
+                </div>`;
             });
             contenedor.innerHTML = html;
-        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
+        } catch (e) {
+            contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>";
+        }
     }
 
-    // --- Módulo Compartido: ESTADÍSTICAS / ASISTENCIA ---
     async function cargarModuloAsistencia(contenedorID) {
-        const contenedor = document.getElementById(contenedorID); contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Calculando estadísticas...</p>";
+        const contenedor = document.getElementById(contenedorID);
+        contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Calculando estadísticas...</p>";
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerAsistenciaEquipo&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const res = await fetch(`${URL_BACKEND}?action=obtenerAsistenciaEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
-            if(!data.asistencias || data.asistencias.length === 0) return contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Sin datos de asistencia.</p>";
+            if (!data.asistencias || data.asistencias.length === 0) {
+                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Sin datos de asistencia.</p>";
+                return;
+            }
             let html = `<table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200"><th class="p-3 font-bold">Jugador</th><th class="p-3 font-bold text-center w-16">Clases</th><th class="p-3 font-bold text-center w-20">% Asist.</th></tr></thead><tbody>`;
             data.asistencias.forEach(a => {
-                let colorBarra = a.porcentaje >= 80 ? 'bg-green-500' : (a.porcentaje >= 50 ? 'bg-amber-500' : 'bg-red-500');
-                let colorTexto = a.totalAsistencias === 0 ? 'text-slate-400' : 'text-slate-700';
-                html += `<tr class="border-b border-slate-100 hover:bg-slate-50 transition"><td class="p-3 flex items-center gap-3"><img src="${a.fotoUrl}" class="w-8 h-8 rounded-full object-cover bg-slate-200 border border-slate-200"><span class="text-xs font-bold text-slate-800">${a.nombre}</span></td><td class="p-3 text-center text-[11px] font-bold ${colorTexto}">${a.presentes}/${a.totalAsistencias}</td><td class="p-3 text-center"><span class="text-[11px] font-black ${colorTexto} inline-block mb-1">${a.totalAsistencias === 0 ? 'N/A' : a.porcentaje+'%'}</span><div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${colorBarra} h-1.5 rounded-full" style="width: ${a.totalAsistencias === 0 ? 0 : a.porcentaje}%"></div></div></td></tr>`;
+                const colorBarra = a.porcentaje >= 80 ? 'bg-green-500' : (a.porcentaje >= 50 ? 'bg-amber-500' : 'bg-red-500');
+                const colorTexto = a.totalAsistencias === 0 ? 'text-slate-400' : 'text-slate-700';
+                html += `
+                <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
+                    <td class="p-3 flex items-center gap-3"><img src="${a.fotoUrl}" class="w-8 h-8 rounded-full object-cover bg-slate-200 border border-slate-200"><span class="text-xs font-bold text-slate-800">${a.nombre}</span></td>
+                    <td class="p-3 text-center text-[11px] font-bold ${colorTexto}">${a.presentes}/${a.totalAsistencias}</td>
+                    <td class="p-3 text-center">
+                        <span class="text-[11px] font-black ${colorTexto} inline-block mb-1">${a.totalAsistencias === 0 ? 'N/A' : a.porcentaje + '%'}</span>
+                        <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${colorBarra} h-1.5 rounded-full" style="width: ${a.totalAsistencias === 0 ? 0 : a.porcentaje}%"></div></div>
+                    </td>
+                </tr>`;
             });
             html += `</tbody></table>`;
             contenedor.innerHTML = html;
-        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
+        } catch (e) {
+            contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>";
+        }
     }
 
-    // --- Módulo: TOMAR ASISTENCIA (Profesor) ---
     async function cargarListaAsistencia() {
-        const contenedor = document.getElementById("listaAsistenciaTomar"); contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando jugadores...</p>";
+        const contenedor = document.getElementById("listaAsistenciaTomar");
+        contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando jugadores...</p>";
         document.getElementById("fechaAsistencia").valueAsDate = new Date();
+
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${estadoGlobal.idEquipoSeleccionado}`);
+            const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
-            if(!data.jugadores || data.jugadores.length === 0) return contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Primero debe Armar la Selección.</p>";
+            if (!data.jugadores || data.jugadores.length === 0) {
+                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Primero debe agregar jugadores en Seleccionados.</p>";
+                return;
+            }
             let html = "";
             data.jugadores.forEach(j => {
-                html += `<div class="flex items-center justify-between p-3 border-b border-slate-100" data-dni="${j.dni}"><div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover"><div><p class="font-bold text-slate-800 text-sm leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${j.grado}</p></div></div><div class="flex gap-2"><button onclick="marcarAsistencia(this, 'Presente')" class="btn-asist bg-green-500 text-white font-bold px-3 py-1 rounded shadow-sm text-xs w-16 opacity-100 transition">P</button><button onclick="marcarAsistencia(this, 'Falta')" class="btn-asist bg-slate-200 text-slate-500 font-bold px-3 py-1 rounded shadow-sm text-xs w-16 opacity-50 transition hover:opacity-100">F</button></div><input type="hidden" class="estado-asistencia-input" value="Presente"></div>`;
+                html += `
+                <div class="flex items-center justify-between p-3 border-b border-slate-100" data-dni="${j.dni}">
+                    <div class="flex items-center gap-3">
+                        <img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover">
+                        <div>
+                            <p class="font-bold text-slate-800 text-sm leading-tight">${j.nombre}</p>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${j.grado}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="marcarAsistencia(this, 'Presente')" class="btn-asist bg-green-500 text-white font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-100 transition">P</button>
+                        <button onclick="marcarAsistencia(this, 'Falta')" class="btn-asist bg-slate-200 text-slate-500 font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-50 transition hover:opacity-100">F</button>
+                    </div>
+                    <input type="hidden" class="estado-asistencia-input" value="Presente">
+                </div>`;
             });
             contenedor.innerHTML = html;
-        } catch(e) { contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>"; }
+        } catch (e) {
+            contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>";
+        }
     }
 
     function marcarAsistencia(btnClick, estado) {
-        const cFila = btnClick.closest('.flex.items-center.justify-between'); const btns = cFila.querySelectorAll('.btn-asist');
+        const cFila = btnClick.closest('.flex.items-center.justify-between');
+        const btns = cFila.querySelectorAll('.btn-asist');
         btns[0].classList.replace('bg-green-500', 'bg-slate-200'); btns[0].classList.replace('text-white', 'text-slate-500'); btns[0].classList.replace('opacity-100', 'opacity-50');
         btns[1].classList.replace('bg-red-500', 'bg-slate-200'); btns[1].classList.replace('text-white', 'text-slate-500'); btns[1].classList.replace('opacity-100', 'opacity-50');
-        btnClick.classList.replace('bg-slate-200', estado === 'Presente' ? 'bg-green-500' : 'bg-red-500'); btnClick.classList.replace('text-slate-500', 'text-white'); btnClick.classList.replace('opacity-50', 'opacity-100');
+        btnClick.classList.replace('bg-slate-200', estado === 'Presente' ? 'bg-green-500' : 'bg-red-500');
+        btnClick.classList.replace('text-slate-500', 'text-white');
+        btnClick.classList.replace('opacity-50', 'opacity-100');
         cFila.querySelector('.estado-asistencia-input').value = estado;
     }
 
     function guardarAsistenciaBD() {
-        const fecha = document.getElementById("fechaAsistencia").value; if(!fecha) return mostrarAlerta("Seleccione una fecha.");
-        let arr = []; document.querySelectorAll('#listaAsistenciaTomar > div').forEach(fila => arr.push({ dni: fila.getAttribute('data-dni'), estado: fila.querySelector('.estado-asistencia-input').value }));
+        const fecha = document.getElementById("fechaAsistencia").value;
+        if (!fecha) return mostrarAlerta("Seleccione una fecha.");
+        let arr = [];
+        document.querySelectorAll('#listaAsistenciaTomar > div[data-dni]').forEach(fila => {
+            arr.push({ dni: fila.getAttribute('data-dni'), estado: fila.querySelector('.estado-asistencia-input').value });
+        });
+        if (arr.length === 0) return mostrarAlerta("No hay jugadores para registrar asistencia.");
 
-        const btn = document.getElementById("btnGuardarAsist"); btn.innerText = "Guardando..."; btn.disabled = true;
+        const btn = document.getElementById("btnGuardarAsist");
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
+
         const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
         window[callbackName] = function(data) {
-            mostrarAlerta("Asistencia guardada correctamente."); btn.innerText = "💾 Guardar Asistencia de Hoy"; btn.disabled = false;
-            cerrarModuloProfe('profeAsistenciaView'); delete window[callbackName];
+            mostrarAlerta("Asistencia guardada correctamente.");
+            btn.innerText = "💾 Guardar Asistencia de Hoy";
+            btn.disabled = false;
+            cerrarModuloProfe('profeAsistenciaView');
+            delete window[callbackName];
         };
+
         const scriptGuardar = document.createElement('script');
         scriptGuardar.src = `${URL_BACKEND}?action=guardarAsistencia&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&fecha=${encodeURIComponent(fecha)}&datos=${encodeURIComponent(JSON.stringify(arr))}&callback=${callbackName}`;
         document.body.appendChild(scriptGuardar);
     }
 
-    // --- Sub-módulo: PROGRAMAR PARTIDO (Profesor) ---
+    // --- Programar Partido ---
     async function iniciarProgramacionPartido() {
-        document.getElementById("profeEncuentrosView").classList.add("hidden"); document.getElementById("programarPartidoView").classList.remove("hidden");
-        document.getElementById("formProgramacion").classList.add("hidden"); document.getElementById("pantallaExito").classList.add("hidden"); document.getElementById("loaderProgramar").classList.remove("hidden");
-        
+        document.getElementById("profeEncuentrosView").classList.add("hidden");
+        document.getElementById("programarPartidoView").classList.remove("hidden");
+        document.getElementById("formProgramacion").classList.add("hidden");
+        document.getElementById("pantallaExito").classList.add("hidden");
+        document.getElementById("loaderProgramar").classList.remove("hidden");
+
         estadoGlobal.dnisConvocados = [];
-        document.getElementById("txtRival").value = ""; document.getElementById("txtFecha").value = ""; document.getElementById("txtFechaConvocatoria").value = ""; document.getElementById("txtLugar").value = ""; document.getElementById("txtDireccion").value = "";
+        document.getElementById("contadorConvocados").innerText = "0";
+        ['txtRival', 'txtFecha', 'txtFechaConvocatoria', 'txtLugar', 'txtDireccion'].forEach(id => document.getElementById(id).value = "");
 
         try {
-            const res = await fetch(`${URL_BACKEND}?action=obtenerDatosProgramacion&idEquipo=${estadoGlobal.idEquipoSeleccionado}&idColegio=${estadoGlobal.idColegio}`);
+            const res = await fetch(`${URL_BACKEND}?action=obtenerDatosProgramacion&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            
-            let options = "<option value=''>Seleccione Campeonato...</option>"; data.campeonatos.forEach(c => options += `<option value="${c.id}">${c.nombre}</option>`); document.getElementById("selCampeonato").innerHTML = options;
+
+            let options = "<option value=''>Seleccione Campeonato...</option>";
+            (data.campeonatos || []).forEach(c => options += `<option value="${c.id}">${c.nombre}</option>`);
+            document.getElementById("selCampeonato").innerHTML = options;
 
             let htmlJugadores = "";
-            data.plantilla.forEach(j => {
-                // AQUI AGREGAMOS LA CASILLA DE VERIFICACION (CHECKBOX) CORRECTAMENTE
+            (data.plantilla || []).forEach(j => {
                 htmlJugadores += `
                 <label class="flex items-center p-2 border rounded bg-white shadow-sm cursor-pointer hover:bg-slate-50 mb-1">
                     <input type="checkbox" value="${j.dni}" class="check-convocado w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)">
@@ -464,54 +829,93 @@
             });
             document.getElementById("listaJugadoresConvocar").innerHTML = htmlJugadores || "<p class='text-red-500 text-sm'>No hay jugadores en la Selección Oficial.</p>";
 
-            document.getElementById("loaderProgramar").classList.add("hidden"); document.getElementById("formProgramacion").classList.remove("hidden");
-        } catch (error) { mostrarAlerta("Error: " + error); }
+            document.getElementById("loaderProgramar").classList.add("hidden");
+            document.getElementById("formProgramacion").classList.remove("hidden");
+        } catch (error) {
+            mostrarAlerta("Error: " + error.message);
+        }
     }
 
     function calcularConvocatoria() {
         const fStr = document.getElementById("txtFecha").value;
-        if(fStr) { let f = new Date(fStr); f.setMinutes(f.getMinutes() - 30); const p = (n) => n<10?'0'+n:n; document.getElementById("txtFechaConvocatoria").value = `${f.getFullYear()}-${p(f.getMonth()+1)}-${p(f.getDate())}T${p(f.getHours())}:${p(f.getMinutes())}`; }
+        if (fStr) {
+            let f = new Date(fStr);
+            f.setMinutes(f.getMinutes() - 30);
+            const p = (n) => n < 10 ? '0' + n : n;
+            document.getElementById("txtFechaConvocatoria").value = `${f.getFullYear()}-${p(f.getMonth() + 1)}-${p(f.getDate())}T${p(f.getHours())}:${p(f.getMinutes())}`;
+        }
     }
 
     function toggleConvocado(chk) {
-        if(chk.checked) estadoGlobal.dnisConvocados.push(chk.value); else estadoGlobal.dnisConvocados = estadoGlobal.dnisConvocados.filter(dni => dni !== chk.value);
+        if (chk.checked) estadoGlobal.dnisConvocados.push(chk.value);
+        else estadoGlobal.dnisConvocados = estadoGlobal.dnisConvocados.filter(dni => dni !== chk.value);
         document.getElementById("contadorConvocados").innerText = estadoGlobal.dnisConvocados.length;
     }
 
     function guardarEncuentro() {
-        const idCamp = document.getElementById("selCampeonato").value, rival = document.getElementById("txtRival").value, fecha = document.getElementById("txtFecha").value, fechaConv = document.getElementById("txtFechaConvocatoria").value, lugar = document.getElementById("txtLugar").value, dir = document.getElementById("txtDireccion").value;
-        if(!idCamp || !rival || !fecha || !fechaConv || !lugar || estadoGlobal.dnisConvocados.length === 0) return mostrarAlerta("Por favor complete todos los campos y seleccione al menos 1 jugador.");
-        const btn = document.getElementById("btnGuardarEncuentro"); btn.innerText = "Programando..."; btn.disabled = true;
+        const idCamp = document.getElementById("selCampeonato").value;
+        const rival = document.getElementById("txtRival").value.trim();
+        const fecha = document.getElementById("txtFecha").value;
+        const fechaConv = document.getElementById("txtFechaConvocatoria").value;
+        const lugar = document.getElementById("txtLugar").value.trim();
+        const dir = document.getElementById("txtDireccion").value.trim();
+
+        if (!idCamp || !rival || !fecha || !fechaConv || !lugar || estadoGlobal.dnisConvocados.length === 0) {
+            return mostrarAlerta("Por favor complete todos los campos y seleccione al menos 1 jugador.");
+        }
+
+        const btn = document.getElementById("btnGuardarEncuentro");
+        btn.innerText = "Programando...";
+        btn.disabled = true;
 
         const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
         window[callbackName] = function(dataGuardar) {
-            if(dataGuardar.exito) {
-                document.getElementById("formProgramacion").classList.add("hidden"); document.getElementById("pantallaExito").classList.remove("hidden");
+            if (dataGuardar.exito) {
+                document.getElementById("formProgramacion").classList.add("hidden");
+                document.getElementById("pantallaExito").classList.remove("hidden");
                 document.getElementById("linkGenerado").value = `${URL_GITHUB}?token=${dataGuardar.token}`;
-                let nombres = []; document.querySelectorAll('.check-convocado:checked').forEach(chk => nombres.push(chk.nextElementSibling.querySelector('.font-bold').innerText));
-                const fd = (dateStr) => { const d = new Date(dateStr); return d.toLocaleString('es-PE', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}); };
+
+                let nombres = [];
+                document.querySelectorAll('.check-convocado:checked').forEach(chk => {
+                    nombres.push(chk.nextElementSibling.querySelector('.font-bold').innerText);
+                });
+                const fd = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                 let msg = `⚽ *CONVOCATORIA OFICIAL* ⚽\n\n*Rival:* ${rival}\n*Día y Hora:* ${fd(fecha)}\n*Hora de Citación:* ${fd(fechaConv)}\n*Lugar:* ${lugar}\n*Ref:* ${dir}\n\n*Jugadores Convocados:*\n`;
-                nombres.forEach(n => msg += `✅ ${n}\n`); msg += `\n*Necesitamos apoyo:* ¿Algún padre voluntario para llevar las estadísticas en la Mesa de Control? Responda a este mensaje para enviarle el link privado.`;
+                nombres.forEach(n => msg += `✅ ${n}\n`);
+                msg += `\n*Necesitamos apoyo:* ¿Algún padre voluntario para llevar las estadísticas en la Mesa de Control? Responda a este mensaje para enviarle el link privado.`;
+
                 document.getElementById("btnWhatsAppGrupo").innerHTML = `<a href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-3 rounded-lg shadow-md hover:bg-green-600 transition">Enviar al Grupo WhatsApp</a>`;
-            } else { mostrarAlerta("Error al programar."); }
-            btn.innerText = "Programar y Generar Link"; btn.disabled = false; delete window[callbackName];
+            } else {
+                mostrarAlerta("Error al programar el partido.");
+            }
+            btn.innerText = "💾 Programar y Generar Link";
+            btn.disabled = false;
+            delete window[callbackName];
         };
+
         const scriptGuardar = document.createElement('script');
         scriptGuardar.src = `${URL_BACKEND}?action=guardarEncuentro&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idCampeonato=${encodeURIComponent(idCamp)}&rival=${encodeURIComponent(rival)}&fechaPartido=${encodeURIComponent(fecha)}&fechaConvocatoria=${encodeURIComponent(fechaConv)}&lugar=${encodeURIComponent(lugar)}&direccion=${encodeURIComponent(dir)}&dnisConvocados=${encodeURIComponent(JSON.stringify(estadoGlobal.dnisConvocados))}&callback=${callbackName}`;
         document.body.appendChild(scriptGuardar);
     }
-    function copiarLink() { const input = document.getElementById("linkGenerado"); input.select(); document.execCommand("copy"); mostrarAlerta("Enlace copiado al portapapeles."); }
 
+    function copiarLink() {
+        const input = document.getElementById("linkGenerado");
+        input.select();
+        document.execCommand("copy");
+        mostrarAlerta("Enlace copiado al portapapeles.");
+    }
 </script>
 
 <!-- ======================================================= -->
-<!-- MODALES GLOBALES (Z-INDEX ALTO) -->
+<!-- MODALES GLOBALES -->
 <!-- ======================================================= -->
 
-<!-- Modal Alerta -->
+<!-- Modal Alerta Moderna -->
 <div id="alertaModern" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] items-center justify-center px-4">
     <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-xs w-full text-center">
-        <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg></div>
+        <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
         <h3 class="text-lg font-black text-slate-800 mb-2">Aviso del Sistema</h3>
         <p id="alertaMensaje" class="text-sm text-slate-500 mb-6 font-medium leading-snug"></p>
         <button onclick="cerrarAlerta()" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl hover:bg-slate-900 transition">Entendido</button>
@@ -537,7 +941,7 @@
                 <label class="flex items-center text-xs font-bold"><input type="checkbox" value="5to Secundaria" class="check-categoria w-4 h-4 mr-2">5to Sec</label>
             </div>
         </div>
-        <button id="btnGuardarSeleccion" onclick="guardarNuevaSeleccion()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl mt-2">Crear Selección</button>
+        <button id="btnGuardarSeleccion" onclick="guardarNuevaSeleccion()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl mt-2 hover:bg-slate-900 transition">Crear Selección</button>
     </div>
 </div>
 
@@ -548,7 +952,7 @@
             <h3 class="text-xl font-black"><span class="mr-2">👔</span> Nuevo Entrenador</h3>
             <button onclick="cerrarModalNuevoDT()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
         </div>
-        <div class="space-y-4">
+        <div class="space-y-3">
             <div><label class="block text-[11px] font-bold text-slate-500 uppercase">DNI</label><input type="number" id="ndtDni" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
             <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ndtNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
             <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ndtApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
@@ -560,28 +964,74 @@
 
 <!-- Modal Nuevo Jugador (DT) -->
 <div id="modalNuevoJugador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-black"><span class="mr-2">👤</span> Nuevo Alumno</h3>
+            <h3 class="text-xl font-black"><span class="mr-2">👤</span> Nuevo Jugador</h3>
             <button onclick="cerrarModalNuevoJugador()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
         </div>
-        <div class="overflow-y-auto pr-2 space-y-4">
+        <div class="overflow-y-auto pr-1 space-y-3">
             <div class="flex flex-col items-center mb-2">
-                <label for="njInputFoto" class="cursor-pointer relative group">
-                    <img id="previewFoto" src="https://placehold.co/150x150?text=Subir+Foto" class="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-sm">
-                    <div class="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full shadow-lg border-2 border-white">📷</div>
+                <label for="njInputFoto" class="cursor-pointer relative">
+                    <img id="previewFoto" src="https://placehold.co/150x150?text=Foto" class="w-24 h-24 rounded-full object-cover border-4 border-slate-100 shadow-sm">
+                    <div class="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full shadow-lg border-2 border-white text-xs">📷</div>
                 </label>
-                <input type="file" id="njInputFoto" accept="image/*" capture="environment" class="hidden" onchange="procesarFotoSubida(event)">
-                <p class="text-[10px] text-slate-400 mt-2 font-bold uppercase">Tocar para foto (Opcional)</p>
+                <input type="file" id="njInputFoto" accept="image/*" capture="environment" class="hidden" onchange="procesarFotoSubida(event, 'previewFoto', 'nuevo')">
+                <p class="text-[10px] text-slate-400 mt-1 font-bold uppercase">Tocar para foto (Opcional)</p>
             </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="col-span-2"><label class="block text-[11px] font-bold text-slate-500 uppercase">DNI</label><input type="number" id="njDni" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-                <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="njNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-                <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="njApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-                <div class="col-span-2"><label class="block text-[11px] font-bold text-slate-500 uppercase">Categoría Base</label><select id="njGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select></div>
+            <div class="grid grid-cols-3 gap-2">
+                <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-500 uppercase">DNI</label><input type="number" id="njDni" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Dorsal</label><input type="number" id="njCamiseta" placeholder="N°" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold text-center"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="njNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="njApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+            </div>
+            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Categoría Base</label><select id="njGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select></div>
+        </div>
+        <button id="btnGuardarNuevoJugador" onclick="guardarNuevoJugador()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-blue-700 transition">Registrar y Agregar</button>
+    </div>
+</div>
+
+<!-- Modal Editar Ficha de Jugador (DT) -->
+<div id="modalEditarJugador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-black"><span class="mr-2">✏️</span> Ficha del Jugador</h3>
+            <button onclick="cerrarModalEditarJugador()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
+        </div>
+        <input type="hidden" id="ejDni">
+        <div class="overflow-y-auto pr-1 space-y-3">
+            <div class="flex flex-col items-center mb-2">
+                <label for="ejInputFoto" class="cursor-pointer relative">
+                    <img id="ejPreviewFoto" src="https://placehold.co/150x150?text=Foto" class="w-28 h-28 rounded-full object-cover border-4 border-blue-100 shadow-md">
+                    <div class="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full shadow-lg border-2 border-white text-xs">📷</div>
+                </label>
+                <input type="file" id="ejInputFoto" accept="image/*" capture="environment" class="hidden" onchange="procesarFotoSubida(event, 'ejPreviewFoto', 'editar')">
+                <p class="text-[10px] text-blue-600 mt-1 font-bold uppercase">Tocar para cambiar / tomar foto</p>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-500 uppercase">Grado / Base</label><select id="ejGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Dorsal</label><input type="number" id="ejCamiseta" placeholder="N°" class="w-full border-2 border-blue-200 bg-blue-50 p-2.5 rounded-xl text-sm font-black text-center text-blue-800"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ejNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ejApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
             </div>
         </div>
-        <button id="btnGuardarNuevoJugador" onclick="guardarNuevoJugador()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl mt-4">Registrar Jugador</button>
+        <button id="btnGuardarEdicion" onclick="guardarEdicionJugador()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-4 hover:bg-blue-700 transition shadow">💾 Guardar Cambios</button>
+        <button id="btnQuitarJugador" onclick="quitarJugadorDeSeleccion()" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl mt-2 hover:bg-red-100 transition text-xs">🗑️ Quitar de esta Selección</button>
+    </div>
+</div>
+
+<!-- Modal Traer Jugadores Existentes (DT) -->
+<div id="modalAgregarExistente" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-lg font-black">📥 Alumnos Disponibles</h3>
+            <button onclick="cerrarModalAgregarExistente()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
+        </div>
+        <p class="text-[11px] text-slate-500 mb-3">Alumnos registrados en los grados permitidos que aún no están en esta selección:</p>
+        <div id="listaDisponiblesModal" class="overflow-y-auto divide-y divide-slate-100 flex-1"></div>
     </div>
 </div>
 
@@ -589,8 +1039,8 @@
 <!-- CONTENEDOR PRINCIPAL -->
 <!-- ======================================================= -->
 <div class="max-w-md mx-auto relative min-h-screen pb-16 bg-gray-100">
-    
-    <!-- LOGIN GENERAL -->
+
+    <!-- LOGIN -->
     <div id="loginView" class="bg-white p-6 rounded-2xl shadow-xl text-center mt-12 border border-slate-200 mx-4 relative overflow-hidden">
         <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-green-500"></div>
         <h2 class="text-3xl font-black text-slate-800 mb-1">Acceso Personal</h2>
@@ -600,7 +1050,7 @@
     </div>
 
     <!-- ======================================================= -->
-    <!-- PANTALLAS DEL COORDINADOR (Vistas y Dashboard) -->
+    <!-- PANEL COORDINADOR -->
     <!-- ======================================================= -->
     <div id="coordinadorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
@@ -613,10 +1063,12 @@
         </div>
         <div id="contenedorSelecciones" class="px-4"></div>
     </div>
-    
+
     <div id="dashboardCoordinadorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
         <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver</button>
+            <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver
+            </button>
             <h2 id="dashCoordNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
             <p id="dashCoordCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
         </div>
@@ -625,22 +1077,20 @@
                 <div><p class="text-[10px] text-slate-400 font-bold uppercase">Entrenador a cargo</p><p id="dashCoordNombreDT" class="text-sm font-bold">Cargando...</p></div>
                 <div id="dashCoordWspDT"></div>
             </div>
-            
             <div class="grid grid-cols-2 gap-3">
                 <button onclick="abrirModuloCoordinador('moduloDashboardCampeonato')" class="col-span-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-6 flex items-center justify-between transition shadow-md">
                     <div class="text-left"><span class="text-xs font-bold uppercase tracking-wider opacity-75">Visualizar</span><h3 class="text-xl font-black">Dashboard de<br>Campeonato</h3></div><span class="text-5xl">🏆</span>
                 </button>
-                <button onclick="abrirModuloCoordinador('moduloJugadores')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">🏃‍♂️</span><span class="text-xs font-bold text-slate-700">Jugadores</span></button>
-                <button onclick="abrirModuloCoordinador('moduloEncuentros')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">⚽</span><span class="text-xs font-bold text-slate-700">Encuentros</span></button>
-                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">📋</span><span class="text-xs font-bold text-slate-700">Asistencia</span></button>
-                <button onclick="abrirModuloCoordinador('moduloDT')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2 drop-shadow-sm">⚙️</span><span class="text-xs font-bold text-slate-700">Cambiar DT</span></button>
+                <button onclick="abrirModuloCoordinador('moduloJugadores')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">🏃‍♂️</span><span class="text-xs font-bold text-slate-700">Jugadores</span></button>
+                <button onclick="abrirModuloCoordinador('moduloEncuentros')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">⚽</span><span class="text-xs font-bold text-slate-700">Encuentros</span></button>
+                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">📋</span><span class="text-xs font-bold text-slate-700">Asistencia</span></button>
+                <button onclick="abrirModuloCoordinador('moduloDT')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">⚙️</span><span class="text-xs font-bold text-slate-700">Cambiar DT</span></button>
             </div>
         </div>
     </div>
 
-
     <!-- ======================================================= -->
-    <!-- PANTALLAS DEL PROFESOR / DT -->
+    <!-- PANEL PROFESOR / DT -->
     <!-- ======================================================= -->
     <div id="profesorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
@@ -653,34 +1103,35 @@
 
     <div id="dashboardProfesorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
         <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition"><svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver</button>
+            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver
+            </button>
             <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
             <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
         </div>
         <div class="p-4 mt-2">
             <div class="grid grid-cols-2 gap-3">
                 <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3 drop-shadow-sm">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
+                    <span class="text-4xl mb-3">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
                 </button>
                 <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3 drop-shadow-sm">✅</span><span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span>
+                    <span class="text-4xl mb-3">✅</span><span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span>
                 </button>
                 <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3 drop-shadow-sm">⚽</span><span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span>
+                    <span class="text-4xl mb-3">⚽</span><span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span>
                 </button>
                 <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3 drop-shadow-sm">📊</span><span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span>
+                    <span class="text-4xl mb-3">📊</span><span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span>
                 </button>
             </div>
         </div>
     </div>
 
-
     <!-- ======================================================= -->
-    <!-- MÓDULOS HTML (COMPARTIDOS Y EXCLUSIVOS) -->
+    <!-- MÓDULOS DE VISTAS -->
     <!-- ======================================================= -->
 
-    <!-- Módulo Coord: Jugadores -->
+    <!-- Coord: Jugadores -->
     <div id="moduloJugadores" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏃‍♂️</span> Jugadores Oficiales</h2>
@@ -689,7 +1140,7 @@
         <div class="p-4"><div id="listaJugadoresModulo" class="grid grid-cols-2 gap-3"></div></div>
     </div>
 
-    <!-- Módulo Coord: Cambiar DT -->
+    <!-- Coord: Cambiar / Registrar DT -->
     <div id="moduloDT" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
         <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚙️</span> Cambiar Entrenador</h2>
@@ -705,7 +1156,7 @@
         </div>
     </div>
 
-    <!-- Módulo Coord: Dashboard Campeonato -->
+    <!-- Coord: Dashboard Campeonato -->
     <div id="moduloDashboardCampeonato" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Campeonato Oficial</h2>
@@ -719,11 +1170,11 @@
                 <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-4xl font-black text-amber-500">0</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1 tracking-wider">Empatados</p></div>
                 <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-4xl font-black text-red-500">0</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1 tracking-wider">Perdidos</p></div>
             </div>
-            <p class="text-xs text-slate-500 text-center font-bold animate-pulse mt-10">Conectando métricas desde la Base de Datos...</p>
+            <p class="text-xs text-slate-500 text-center font-bold mt-6">Siguiente paso: conectar métricas de partidos y goles.</p>
         </div>
     </div>
 
-    <!-- Módulo Compartido: Encuentros -->
+    <!-- Coord: Encuentros -->
     <div id="moduloEncuentros" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Historial Encuentros</h2>
@@ -732,33 +1183,36 @@
         <div class="p-4"><div id="listaEncuentrosModulo"></div></div>
     </div>
 
-    <!-- Módulo Compartido: Asistencia -->
+    <!-- Coord: Asistencia -->
     <div id="moduloAsistencia" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📋</span> Asistencia al Roster</h2>
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📋</span> Asistencia</h2>
             <button onclick="cerrarModuloCoordinador('moduloAsistencia')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-4"><div id="listaAsistenciaModulo" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"></div></div>
     </div>
 
-
-    <!-- Módulo Profesor: ARMAR SELECCIÓN (Roster Oficial) -->
+    <!-- DT: SELECCIONADOS (Fichas Visuales) -->
     <div id="profeRosterView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">👥</span> Seleccionados</h2>
             <button onclick="cerrarModuloProfe('profeRosterView')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
         <div class="p-4">
-            <div class="flex justify-between items-center mb-4">
-                <p class="text-[11px] text-slate-500 font-medium leading-tight mr-4">Marque a los alumnos y asigne su dorsal (N° Camiseta).</p>
-                <button onclick="abrirModalNuevoJugador()" class="bg-blue-100 text-blue-700 text-[11px] font-bold px-3 py-2 rounded-lg shadow-sm border border-blue-200 whitespace-nowrap hover:bg-blue-200">+ Añadir Nuevo</button>
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <button onclick="abrirModalNuevoJugador()" class="bg-blue-600 text-white text-xs font-bold py-3 px-3 rounded-xl shadow hover:bg-blue-700 transition flex items-center justify-center gap-1">
+                    <span>➕</span> Nuevo Jugador
+                </button>
+                <button onclick="abrirModalAgregarExistente()" class="bg-white text-blue-700 border border-blue-200 text-xs font-bold py-3 px-3 rounded-xl shadow-sm hover:bg-blue-50 transition flex items-center justify-center gap-1">
+                    <span>📥</span> Traer de la Base
+                </button>
             </div>
-            <div id="listaRosterCheckboxes" class="bg-white border rounded-xl overflow-y-auto max-h-[60vh] shadow-sm mb-6"></div>
-            <button id="btnGuardarRoster" onclick="guardarRosterFinal()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition">💾 Guardar Selección Oficial</button>
+            <p class="text-[11px] text-slate-500 font-medium mb-3 text-center">Toca la ficha de un jugador para editar su foto o camiseta.</p>
+            <div id="gridSeleccionadosProfe" class="grid grid-cols-2 gap-3 pb-10"></div>
         </div>
     </div>
-    
-    <!-- Módulo Profesor: TOMAR ASISTENCIA -->
+
+    <!-- DT: TOMAR ASISTENCIA -->
     <div id="profeAsistenciaView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-amber-500 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">✅</span> Tomar Asistencia</h2>
@@ -772,7 +1226,7 @@
         </div>
     </div>
 
-    <!-- Módulo Profesor: ENCUENTROS -->
+    <!-- DT: ENCUENTROS -->
     <div id="profeEncuentrosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-green-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Encuentros</h2>
@@ -787,7 +1241,7 @@
         </div>
     </div>
 
-    <!-- Módulo Profesor: ESTADÍSTICAS -->
+    <!-- DT: ESTADÍSTICAS -->
     <div id="profeEstadisticasView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-purple-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📊</span> Rendimiento</h2>
@@ -799,7 +1253,7 @@
         </div>
     </div>
 
-    <!-- Sub-módulo Profesor: PROGRAMAR PARTIDO -->
+    <!-- DT: PROGRAMAR PARTIDO -->
     <div id="programarPartidoView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-30">
         <div class="bg-slate-800 text-white p-4 flex justify-between items-center mb-4 shadow-md sticky top-0">
             <h2 class="font-bold text-lg">Nuevo Partido</h2>
@@ -838,7 +1292,7 @@
             <div id="listaJugadoresConvocar" class="grid grid-cols-1 max-h-56 overflow-y-auto bg-white p-2 rounded-xl mb-6 border border-slate-200 shadow-inner"></div>
             <button id="btnGuardarEncuentro" onclick="guardarEncuentro()" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition">💾 Programar y Generar Link</button>
         </div>
-        
+
         <div id="pantallaExito" class="hidden px-4 py-2 max-w-md mx-auto">
             <div class="text-center mb-5 mt-4">
                 <div class="inline-flex bg-green-100 p-3 rounded-full mb-3"><svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>
@@ -855,9 +1309,10 @@
                     <button onclick="copiarLink()" class="bg-blue-600 text-white px-4 rounded-r-xl font-bold text-xs hover:bg-blue-700 transition">Copiar</button>
                 </div>
             </div>
-            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden'); cargarEncuentrosProfe();" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md">Finalizar y Volver</button>
+            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden'); cargarModuloEncuentros('listaEncuentrosProfe');" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md">Finalizar y Volver</button>
         </div>
     </div>
+
 </div>
 
 </body>
