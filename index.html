@@ -82,9 +82,13 @@
         try {
             const formData = new URLSearchParams(); formData.append('action', 'crearSeleccion'); formData.append('nombre', nombre); formData.append('categorias', cats.join(', ')); formData.append('idColegio', estadoGlobal.idColegio);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const data = await res.json();
-            if(data.exito) { mostrarAlerta(data.mensaje); cerrarModalCrearSeleccion(); cargarMenuCoordinador(); } else throw new Error(data.error);
-        } catch (e) { mostrarAlerta("Error: " + e.message); }
+            
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor."); }
+
+            if(data.exito) { mostrarAlerta(data.mensaje); cerrarModalCrearSeleccion(); cargarMenuCoordinador(); } else throw new Error(data.error || "Error desconocido");
+        } catch (e) { mostrarAlerta(e.message); }
         btn.innerText = "Crear Selección"; btn.disabled = false;
     }
 
@@ -103,11 +107,16 @@
         try {
             const formData = new URLSearchParams(); formData.append('action', 'registrarNuevoProfesor'); formData.append('dni', dni); formData.append('nombres', nom); formData.append('apellidos', ap); formData.append('telefono', tel); formData.append('idColegio', estadoGlobal.idColegio);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const data = await res.json();
+            
+            // Leemos primero como texto para depurar si falla
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor: " + textResponse.substring(0, 50)); }
+
             if(data.exito) { 
-                mostrarAlerta(data.mensaje); cerrarModalNuevoDT(); cargarModuloDT(); // recargar lista de profes
-            } else throw new Error(data.error);
-        } catch(e) { mostrarAlerta("Error: " + e.message); }
+                mostrarAlerta(data.mensaje || "Operación exitosa"); cerrarModalNuevoDT(); cargarModuloDT();
+            } else throw new Error(data.error || "Error desconocido");
+        } catch(e) { mostrarAlerta(e.message); }
         btn.innerText = "Registrar Entrenador"; btn.disabled = false;
     }
 
@@ -204,7 +213,7 @@
         </div>`;
     }
 
-    function guardarRosterFinal() {
+    async function guardarRosterFinal() {
         let datosSeleccionados = []; 
         document.querySelectorAll('.roster-item').forEach(item => {
             const chk = item.querySelector('.check-roster');
@@ -220,13 +229,17 @@
         try {
             const formData = new URLSearchParams(); formData.append('action', 'guardarRosterConCamisetas'); formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado); formData.append('datosJugadores', JSON.stringify(datosSeleccionados));
             
-            fetch(URL_BACKEND, { method: 'POST', body: formData }).then(res => res.json()).then(data => {
-                mostrarAlerta(data.mensaje); btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;
-                cerrarModuloProfe('profeRosterView');
-            });
-        } catch (e) { mostrarAlerta("Error al guardar."); btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;}
-    }
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor."); }
 
+            if(data.error) throw new Error(data.error);
+            mostrarAlerta(data.mensaje || "Operación exitosa"); 
+            btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;
+            cerrarModuloProfe('profeRosterView');
+        } catch (e) { mostrarAlerta(e.message); btn.innerText = "💾 Guardar Oficial"; btn.disabled = false;}
+    }
     // Modal Nuevo Jugador (con FOTO comprimida en celular)
     let base64FotoJugador = ""; 
     function abrirModalNuevoJugador() {
@@ -256,59 +269,23 @@
     }
 
     async function guardarNuevoJugador() {
-        const dni = document.getElementById('njDni').value;
-        const nom = document.getElementById('njNombres').value;
-        const ap = document.getElementById('njApellidos').value;
-        const gr = document.getElementById('njGrado').value;
-        
+        const dni = document.getElementById('njDni').value, nom = document.getElementById('njNombres').value, ap = document.getElementById('njApellidos').value, gr = document.getElementById('njGrado').value;
         if(!dni || !nom) return mostrarAlerta("Complete DNI y Nombres.");
-        
-        const btn = document.getElementById('btnGuardarNuevoJugador'); 
-        btn.innerText = "Guardando..."; 
-        btn.disabled = true;
+        const btn = document.getElementById('btnGuardarNuevoJugador'); btn.innerText = "Guardando..."; btn.disabled = true;
 
         try {
-            const formData = new URLSearchParams(); 
-            formData.append('action', 'registrarNuevoJugador'); 
-            formData.append('dni', dni); 
-            formData.append('nombres', nom); 
-            formData.append('apellidos', ap); 
-            formData.append('grado', gr); 
-            formData.append('idColegio', estadoGlobal.idColegio);
+            const formData = new URLSearchParams(); formData.append('action', 'registrarNuevoJugador'); formData.append('dni', dni); formData.append('nombres', nom); formData.append('apellidos', ap); formData.append('grado', gr); formData.append('idColegio', estadoGlobal.idColegio);
             if(base64FotoJugador) formData.append('fotoBase64', base64FotoJugador);
+            
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch(e) { throw new Error("Respuesta no válida del servidor."); }
 
-            const res = await fetch(URL_BACKEND, { 
-                method: 'POST', 
-                body: formData 
-            });
-            
-            // Verificamos si la respuesta del servidor es correcta antes de parsear a JSON
-            if (!res.ok) {
-                 throw new Error("El servidor no respondió correctamente (Error HTTP " + res.status + ").");
-            }
-
-            const data = await res.json();
-            
-            // Manejamos la respuesta de forma segura
-            if(data && data.exito) { 
-                mostrarAlerta(data.mensaje || "Operación exitosa."); 
-                cerrarModalNuevoJugador(); 
-                cargarRosterProfe(); 
-            } else if (data && data.error) {
-                throw new Error(data.error);
-            } else {
-                 throw new Error("El servidor devolvió una respuesta inesperada.");
-            }
-            
-        } catch(e) { 
-            mostrarAlerta(e.message); 
-        } finally {
-            // Esto asegura que el botón vuelva a su estado original pase lo que pase
-            btn.innerText = "Registrar Jugador"; 
-            btn.disabled = false;
-        }
+            if(data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoJugador(); cargarRosterProfe(); } else throw new Error(data.error || "Error desconocido");
+        } catch(e) { mostrarAlerta(e.message); }
+        btn.innerText = "Registrar Jugador"; btn.disabled = false;
     }
-
     // --- Módulo Compartido: JUGADORES (Coordinador) ---
     async function cargarModuloJugadores() {
         const contenedor = document.getElementById("listaJugadoresModulo"); contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 animate-pulse my-10'>Cargando plantilla...</p>";
