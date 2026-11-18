@@ -256,18 +256,57 @@
     }
 
     async function guardarNuevoJugador() {
-        const dni = document.getElementById('njDni').value, nom = document.getElementById('njNombres').value, ap = document.getElementById('njApellidos').value, gr = document.getElementById('njGrado').value;
+        const dni = document.getElementById('njDni').value;
+        const nom = document.getElementById('njNombres').value;
+        const ap = document.getElementById('njApellidos').value;
+        const gr = document.getElementById('njGrado').value;
+        
         if(!dni || !nom) return mostrarAlerta("Complete DNI y Nombres.");
-        const btn = document.getElementById('btnGuardarNuevoJugador'); btn.innerText = "Guardando..."; btn.disabled = true;
+        
+        const btn = document.getElementById('btnGuardarNuevoJugador'); 
+        btn.innerText = "Guardando..."; 
+        btn.disabled = true;
 
         try {
-            const formData = new URLSearchParams(); formData.append('action', 'registrarNuevoJugador'); formData.append('dni', dni); formData.append('nombres', nom); formData.append('apellidos', ap); formData.append('grado', gr); formData.append('idColegio', estadoGlobal.idColegio);
+            const formData = new URLSearchParams(); 
+            formData.append('action', 'registrarNuevoJugador'); 
+            formData.append('dni', dni); 
+            formData.append('nombres', nom); 
+            formData.append('apellidos', ap); 
+            formData.append('grado', gr); 
+            formData.append('idColegio', estadoGlobal.idColegio);
             if(base64FotoJugador) formData.append('fotoBase64', base64FotoJugador);
-            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+
+            const res = await fetch(URL_BACKEND, { 
+                method: 'POST', 
+                body: formData 
+            });
+            
+            // Verificamos si la respuesta del servidor es correcta antes de parsear a JSON
+            if (!res.ok) {
+                 throw new Error("El servidor no respondió correctamente (Error HTTP " + res.status + ").");
+            }
+
             const data = await res.json();
-            if(data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoJugador(); cargarRosterProfe(); } else throw new Error(data.error);
-        } catch(e) { mostrarAlerta("Error: " + e.message); }
-        btn.innerText = "Registrar Jugador"; btn.disabled = false;
+            
+            // Manejamos la respuesta de forma segura
+            if(data && data.exito) { 
+                mostrarAlerta(data.mensaje || "Operación exitosa."); 
+                cerrarModalNuevoJugador(); 
+                cargarRosterProfe(); 
+            } else if (data && data.error) {
+                throw new Error(data.error);
+            } else {
+                 throw new Error("El servidor devolvió una respuesta inesperada.");
+            }
+            
+        } catch(e) { 
+            mostrarAlerta(e.message); 
+        } finally {
+            // Esto asegura que el botón vuelva a su estado original pase lo que pase
+            btn.innerText = "Registrar Jugador"; 
+            btn.disabled = false;
+        }
     }
 
     // --- Módulo Compartido: JUGADORES (Coordinador) ---
