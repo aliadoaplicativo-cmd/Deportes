@@ -64,7 +64,8 @@
 
             document.getElementById("loginView").classList.add("hidden");
 
-            if (data.rol === 'Coordinador') cargarMenuCoordinador();
+            if (data.rol === 'SuperAdmin') cargarMenuSuperAdmin();
+            else if (data.rol === 'Coordinador') cargarMenuCoordinador();
             else if (data.rol === 'Profesor') cargarMenuProfesor();
             else throw new Error("Rol no reconocido.");
         } catch (error) {
@@ -72,6 +73,105 @@
             btn.innerText = "Ingresar al Panel";
             btn.disabled = false;
         }
+    }
+
+    // ==========================================
+    // 0. FLUJOS DEL SUPERADMIN
+    // ==========================================
+    async function cargarMenuSuperAdmin() {
+        document.getElementById("superAdminMainView").classList.remove("hidden");
+        const cont = document.getElementById("contenedorColegiosSA");
+        cont.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando colegios...</p>";
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerPanelSuperAdmin`);
+            const data = await res.json();
+            const colegios = data.colegios || [];
+
+            if (colegios.length === 0) {
+                cont.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>No hay colegios registrados.</p>";
+                return;
+            }
+
+            cont.innerHTML = colegios.map(c => {
+                const activo = c.estado === 'Activo';
+                const badge = activo
+                    ? '<span class="bg-green-100 text-green-700 text-[10px] font-black px-2.5 py-1 rounded-full">ACTIVO</span>'
+                    : '<span class="bg-red-100 text-red-700 text-[10px] font-black px-2.5 py-1 rounded-full">SUSPENDIDO</span>';
+                const btnToggle = activo
+                    ? `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Inactivo')" class="bg-red-50 text-red-600 border border-red-200 text-xs font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition">⛔ Suspender</button>`
+                    : `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Activo')" class="bg-green-50 text-green-700 border border-green-200 text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-100 transition">✅ Reactivar</button>`;
+
+                return `
+                <div class="bg-white rounded-2xl shadow-sm border-l-8 ${activo ? 'border-green-600' : 'border-red-500'} p-4 mb-3">
+                    <div class="flex justify-between items-start gap-2 mb-2">
+                        <div>
+                            <h3 class="font-black text-lg text-slate-800 leading-tight">${c.nombre}</h3>
+                            <p class="text-[10px] text-slate-400 font-bold uppercase">ID: ${c.idColegio}</p>
+                        </div>
+                        ${badge}
+                    </div>
+                    <p class="text-xs text-slate-600 mb-3">👔 Coord: <b>${c.coordinador}</b> ${c.dniCoord ? `(DNI: ${c.dniCoord})` : ''}</p>
+                    <div class="flex justify-end">${btnToggle}</div>
+                </div>`;
+            }).join("");
+        } catch (e) {
+            cont.innerHTML = `<p class='text-center text-red-500'>${e.message}</p>`;
+        }
+    }
+
+    function abrirModalNuevoColegio() {
+        ['saNomColegio', 'saDniCoord', 'saNomCoord', 'saApCoord', 'saTelCoord'].forEach(id => document.getElementById(id).value = "");
+        document.getElementById('modalNuevoColegio').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalNuevoColegio() {
+        document.getElementById('modalNuevoColegio').classList.replace('flex', 'hidden');
+    }
+
+    async function guardarNuevoColegio() {
+        const nomCol = document.getElementById('saNomColegio').value.trim();
+        const dni = document.getElementById('saDniCoord').value.trim();
+        const nom = document.getElementById('saNomCoord').value.trim();
+        const ap = document.getElementById('saApCoord').value.trim();
+        const tel = document.getElementById('saTelCoord').value.trim();
+        if (!nomCol || !dni || !nom) return mostrarAlerta("Complete Nombre del Colegio, DNI y Nombres del Coordinador.");
+
+        const btn = document.getElementById('btnGuardarNuevoColegio');
+        btn.innerText = "Creando..."; btn.disabled = true;
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'crearColegioYCoordinador');
+            formData.append('nombreColegio', nomCol);
+            formData.append('dniCoord', dni);
+            formData.append('nomCoord', nom);
+            formData.append('apCoord', ap);
+            formData.append('telCoord', tel);
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalNuevoColegio();
+                cargarMenuSuperAdmin();
+            } else throw new Error(data.error || "Error al crear colegio.");
+        } catch (e) { mostrarAlerta(e.message); }
+        finally { btn.innerText = "Crear Colegio y Coordinador"; btn.disabled = false; }
+    }
+
+    async function cambiarEstadoColegio(idColegio, nuevoEstado) {
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'cambiarEstadoColegio');
+            formData.append('idColegio', idColegio);
+            formData.append('nuevoEstado', nuevoEstado);
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cargarMenuSuperAdmin();
+            } else throw new Error(data.error || "Error al actualizar estado.");
+        } catch (e) { mostrarAlerta(e.message); }
     }
 
     // ==========================================
@@ -165,9 +265,7 @@
         if (!nombre || cats.length === 0) return mostrarAlerta("Ingrese el nombre y seleccione al menos una categoría.");
 
         const btn = document.getElementById("btnGuardarSeleccion");
-        btn.innerText = "Creando...";
-        btn.disabled = true;
-
+        btn.innerText = "Creando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'crearSeleccion');
@@ -177,27 +275,17 @@
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalCrearSeleccion();
-                cargarMenuCoordinador();
-            } else throw new Error(data.error || "Error al crear selección.");
-        } catch (e) {
-            mostrarAlerta(e.message);
-        } finally {
-            btn.innerText = "Crear Selección";
-            btn.disabled = false;
-        }
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalCrearSeleccion(); cargarMenuCoordinador(); }
+            else throw new Error(data.error || "Error al crear selección.");
+        } catch (e) { mostrarAlerta(e.message); }
+        finally { btn.innerText = "Crear Selección"; btn.disabled = false; }
     }
 
     function abrirModalNuevoDT() {
         ['ndtDni', 'ndtNombres', 'ndtApellidos', 'ndtTelefono'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('modalNuevoDT').classList.replace('hidden', 'flex');
     }
-    function cerrarModalNuevoDT() {
-        document.getElementById('modalNuevoDT').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalNuevoDT() { document.getElementById('modalNuevoDT').classList.replace('flex', 'hidden'); }
 
     async function guardarNuevoDTBackend() {
         const dni = document.getElementById('ndtDni').value.trim();
@@ -207,32 +295,20 @@
         if (!dni || !nom || !ap) return mostrarAlerta("Complete DNI, Nombres y Apellidos.");
 
         const btn = document.getElementById('btnGuardarNuevoDTBackend');
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
-
+        btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'registrarNuevoProfesor');
-            formData.append('dni', dni);
-            formData.append('nombres', nom);
-            formData.append('apellidos', ap);
-            formData.append('telefono', tel);
+            formData.append('dni', dni); formData.append('nombres', nom);
+            formData.append('apellidos', ap); formData.append('telefono', tel);
             formData.append('idColegio', estadoGlobal.idColegio);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalNuevoDT();
-                cargarModuloDT();
-            } else throw new Error(data.error || "Error al registrar DT.");
-        } catch (e) {
-            mostrarAlerta(e.message);
-        } finally {
-            btn.innerText = "Registrar Entrenador";
-            btn.disabled = false;
-        }
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoDT(); cargarModuloDT(); }
+            else throw new Error(data.error || "Error al registrar DT.");
+        } catch (e) { mostrarAlerta(e.message); }
+        finally { btn.innerText = "Registrar Entrenador"; btn.disabled = false; }
     }
 
     async function cargarModuloDT() {
@@ -241,20 +317,14 @@
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerProfesores&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            let html = "<option value=''>Seleccione un Profesor...</option>";
-            (data.profesores || []).forEach(p => html += `<option value="${p.dni}">${p.nombre}</option>`);
-            sel.innerHTML = html;
-        } catch (e) {
-            sel.innerHTML = "<option value=''>Error al cargar</option>";
-        }
+            sel.innerHTML = "<option value=''>Seleccione un Profesor...</option>" + (data.profesores || []).map(p => `<option value="${p.dni}">${p.nombre}</option>`).join("");
+        } catch (e) { sel.innerHTML = "<option value=''>Error al cargar</option>"; }
     }
 
     function guardarNuevoDT() {
         const dniProfesor = document.getElementById("selNuevoDT").value;
         if (!dniProfesor) return mostrarAlerta("Seleccione un profesor de la lista.");
-        const btn = document.getElementById("btnGuardarDT");
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
+        const btn = document.getElementById("btnGuardarDT"); btn.innerText = "Guardando..."; btn.disabled = true;
 
         const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
         window[callbackName] = function(data) {
@@ -264,17 +334,12 @@
                 mostrarAlerta("Entrenador asignado con éxito.");
                 cerrarModuloCoordinador('moduloDT');
                 abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado);
-            } else {
-                mostrarAlerta(data.error || "Error al actualizar.");
-            }
-            btn.innerText = "💾 Guardar Cambios";
-            btn.disabled = false;
-            delete window[callbackName];
+            } else mostrarAlerta(data.error || "Error al actualizar.");
+            btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; delete window[callbackName];
         };
-
-        const scriptGuardar = document.createElement('script');
-        scriptGuardar.src = `${URL_BACKEND}?action=asignarProfesorEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&dniProfesor=${encodeURIComponent(dniProfesor)}&callback=${callbackName}`;
-        document.body.appendChild(scriptGuardar);
+        const s = document.createElement('script');
+        s.src = `${URL_BACKEND}?action=asignarProfesorEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&dniProfesor=${encodeURIComponent(dniProfesor)}&callback=${callbackName}`;
+        document.body.appendChild(s);
     }
 
     async function cargarModuloJugadores() {
@@ -283,13 +348,8 @@
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
-            if (!data.jugadores || data.jugadores.length === 0) {
-                contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Sin jugadores oficiales.</p>";
-                return;
-            }
-            let html = "";
-            data.jugadores.forEach(j => {
-                html += `
+            if (!data.jugadores || data.jugadores.length === 0) { contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Sin jugadores oficiales.</p>"; return; }
+            contenedor.innerHTML = data.jugadores.map(j => `
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
                     <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span>
                     <img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100">
@@ -297,12 +357,8 @@
                         <p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p>
                         <p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p>
                     </div>
-                </div>`;
-            });
-            contenedor.innerHTML = html;
-        } catch (e) {
-            contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>";
-        }
+                </div>`).join("");
+        } catch (e) { contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
     }
 
     // ==========================================
@@ -311,40 +367,25 @@
     async function cargarMenuProfesor() {
         document.getElementById("profesorMainView").classList.remove("hidden");
         document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando sus equipos...</p>";
-
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerEquipos&dni=${encodeURIComponent(estadoGlobal.dniLogueado)}`);
             const data = await res.json();
             estadoGlobal.equiposProfesor = data.datos || [];
-
             if (estadoGlobal.equiposProfesor.length === 0) {
                 document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10'>No tiene equipos asignados aún.</p>";
                 return;
             }
-
-            let html = "";
-            estadoGlobal.equiposProfesor.forEach(eq => {
-                html += `
-                    <button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
-                        <div>
-                            <h3 class="font-black text-2xl uppercase tracking-tight">${eq.nombreEquipo}</h3>
-                            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${eq.categoria}</p>
-                        </div>
-                        <div class="bg-green-50 p-3 rounded-full text-green-600">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                        </div>
-                    </button>`;
-            });
-            document.getElementById("contenedorEquiposProfesor").innerHTML = html;
-        } catch (error) {
-            document.getElementById("contenedorEquiposProfesor").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`;
-        }
+            document.getElementById("contenedorEquiposProfesor").innerHTML = estadoGlobal.equiposProfesor.map(eq => `
+                <button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
+                    <div><h3 class="font-black text-2xl uppercase tracking-tight">${eq.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${eq.categoria}</p></div>
+                    <div class="bg-green-50 p-3 rounded-full text-green-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div>
+                </button>`).join("");
+        } catch (error) { document.getElementById("contenedorEquiposProfesor").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
     }
 
     function abrirDashboardProfesor(idEquipo) {
         const eq = estadoGlobal.equiposProfesor.find(e => e.idEquipo === idEquipo);
         estadoGlobal.idEquipoSeleccionado = idEquipo;
-
         document.getElementById("profesorMainView").classList.add("hidden");
         document.getElementById("dashboardProfesorView").classList.remove("hidden");
         document.getElementById("dashProfeNombreEquipo").innerText = eq.nombreEquipo;
@@ -366,10 +407,7 @@
         if (moduloID === 'profeRosterView') cargarRosterProfe();
         if (moduloID === 'profeAsistenciaView') cargarListaAsistencia();
         if (moduloID === 'profeEncuentrosView') cargarModuloEncuentros('listaEncuentrosProfe');
-        if (moduloID === 'profeEstadisticasView') {
-            cargarDashboardEquipo('contenidoDashboardProfe');
-            cargarModuloAsistencia('listaEstadisticasProfe');
-        }
+        if (moduloID === 'profeEstadisticasView') { cargarDashboardEquipo('contenidoDashboardProfe'); cargarModuloAsistencia('listaEstadisticasProfe'); }
         if (moduloID === 'profeCampeonatosView') cargarCampeonatosProfe();
     }
 
@@ -384,7 +422,6 @@
     async function cargarDashboardEquipo(contenedorID) {
         const cont = document.getElementById(contenedorID);
         cont.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-8 text-xs'>Calculando métricas oficiales...</p>";
-
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerDashboardEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
@@ -393,64 +430,13 @@
             const r = data.resumen;
             const difGoles = r.gf - r.gc;
             const difTxt = difGoles > 0 ? `+${difGoles}` : `${difGoles}`;
-
-            let avisoPend = r.pendientes > 0
-                ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4 text-xs font-bold flex items-center gap-2"><span>⏳</span> Hay ${r.pendientes} partido(s) pendiente(s) de aprobación del DT.</div>`
-                : "";
-
-            let htmlJug = (!data.jugadores || data.jugadores.length === 0)
+            const avisoPend = r.pendientes > 0 ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4 text-xs font-bold flex items-center gap-2"><span>⏳</span> Hay ${r.pendientes} partido(s) pendiente(s) de aprobación del DT.</div>` : "";
+            const htmlJug = (!data.jugadores || data.jugadores.length === 0)
                 ? "<p class='text-center text-slate-400 text-xs py-6'>Sin jugadores registrados aún.</p>"
-                : `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-                    <table class="w-full text-left border-collapse">
-                        <thead>
-                            <tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200">
-                                <th class="p-2.5 font-bold">Jugador</th>
-                                <th class="p-1.5 text-center font-bold">PJ</th>
-                                <th class="p-1.5 text-center font-bold text-indigo-600">Min</th>
-                                <th class="p-1.5 text-center font-bold">⚽</th>
-                                <th class="p-1.5 text-center font-bold">👟</th>
-                                <th class="p-1.5 text-center font-bold">🟨</th>
-                                <th class="p-1.5 text-center font-bold">🟥</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${data.jugadores.map(j => `
-                                <tr class="border-b border-slate-100 text-xs">
-                                    <td class="p-2 flex items-center gap-2">
-                                        <img src="${j.fotoUrl}" class="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0">
-                                        <span class="font-bold text-slate-800 truncate max-w-[95px]">${j.nombre}</span>
-                                    </td>
-                                    <td class="p-1.5 text-center font-bold text-slate-600">${j.pj}</td>
-                                    <td class="p-1.5 text-center font-black text-indigo-600">${j.minutos || 0}'</td>
-                                    <td class="p-1.5 text-center font-black text-green-600">${j.goles}</td>
-                                    <td class="p-1.5 text-center font-bold text-blue-600">${j.asistencias}</td>
-                                    <td class="p-1.5 text-center font-bold text-amber-500">${j.amarillas}</td>
-                                    <td class="p-1.5 text-center font-bold text-red-500">${j.rojas}</td>
-                                </tr>
-                            `).join("")}
-                        </tbody>
-                    </table>
-                </div>`;
+                : `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200"><th class="p-2.5 font-bold">Jugador</th><th class="p-1.5 text-center font-bold">PJ</th><th class="p-1.5 text-center font-bold text-indigo-600">Min</th><th class="p-1.5 text-center font-bold">⚽</th><th class="p-1.5 text-center font-bold">👟</th><th class="p-1.5 text-center font-bold">🟨</th><th class="p-1.5 text-center font-bold">🟥</th></tr></thead><tbody>${data.jugadores.map(j => `<tr class="border-b border-slate-100 text-xs"><td class="p-2 flex items-center gap-2"><img src="${j.fotoUrl}" class="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0"><span class="font-bold text-slate-800 truncate max-w-[95px]">${j.nombre}</span></td><td class="p-1.5 text-center font-bold text-slate-600">${j.pj}</td><td class="p-1.5 text-center font-black text-indigo-600">${j.minutos || 0}'</td><td class="p-1.5 text-center font-black text-green-600">${j.goles}</td><td class="p-1.5 text-center font-bold text-blue-600">${j.asistencias}</td><td class="p-1.5 text-center font-bold text-amber-500">${j.amarillas}</td><td class="p-1.5 text-center font-bold text-red-500">${j.rojas}</td></tr>`).join("")}</tbody></table></div>`;
 
-            cont.innerHTML = `
-                ${avisoPend}
-                <div class="grid grid-cols-2 gap-3 mb-3">
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200"><p class="text-3xl font-black text-slate-800">${r.pj}</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Partidos Jugados</p></div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-3xl font-black text-green-600">${r.pg}</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p></div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-3xl font-black text-amber-500">${r.pe}</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p></div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-3xl font-black text-red-500">${r.pp}</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p></div>
-                </div>
-                <div class="grid grid-cols-3 gap-2 mb-5">
-                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gf}</p><p class="text-[9px] font-bold uppercase text-slate-400">Goles a Favor</p></div>
-                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gc}</p><p class="text-[9px] font-bold uppercase text-slate-400">En Contra</p></div>
-                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-blue-600">${difTxt}</p><p class="text-[9px] font-bold uppercase text-slate-400">Diferencia</p></div>
-                </div>
-                <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Estadísticas por Jugador</h4>
-                ${htmlJug}
-            `;
-        } catch (e) {
-            cont.innerHTML = `<p class='text-center text-red-500 text-xs my-6'>Error al cargar métricas: ${e.message}</p>`;
-        }
+            cont.innerHTML = `${avisoPend}<div class="grid grid-cols-2 gap-3 mb-3"><div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200"><p class="text-3xl font-black text-slate-800">${r.pj}</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Partidos Jugados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-3xl font-black text-green-600">${r.pg}</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-3xl font-black text-amber-500">${r.pe}</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-3xl font-black text-red-500">${r.pp}</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p></div></div><div class="grid grid-cols-3 gap-2 mb-5"><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gf}</p><p class="text-[9px] font-bold uppercase text-slate-400">Goles a Favor</p></div><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gc}</p><p class="text-[9px] font-bold uppercase text-slate-400">En Contra</p></div><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-blue-600">${difTxt}</p><p class="text-[9px] font-bold uppercase text-slate-400">Diferencia</p></div></div><h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Estadísticas por Jugador</h4>${htmlJug}`;
+        } catch (e) { cont.innerHTML = `<p class='text-center text-red-500 text-xs my-6'>Error al cargar métricas: ${e.message}</p>`; }
     }
 
     // ==========================================
@@ -459,59 +445,34 @@
     async function cargarCampeonatosProfe() {
         const cont = document.getElementById("listaCampeonatosProfe");
         cont.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando campeonatos...</p>";
-
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerCampeonatosEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
             campeonatosActual = { participaciones: data.participaciones || [], disponibles: data.disponibles || [] };
-
-            if (campeonatosActual.participaciones.length === 0) {
-                cont.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Esta selección aún no está inscrita en ningún campeonato.</p>";
-                return;
-            }
-
+            if (campeonatosActual.participaciones.length === 0) { cont.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Esta selección aún no está inscrita en ningún campeonato.</p>"; return; }
             cont.innerHTML = campeonatosActual.participaciones.map(p => `
                 <div onclick="abrirModalEditarCampeonato('${p.idParticipacion}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <h3 class="font-black text-lg text-slate-800 leading-tight">${p.nombreCampeonato}</h3>
-                            <p class="text-[11px] text-slate-400 font-bold">📅 Inicio: ${p.fechaInicio || 'Por definir'}</p>
-                        </div>
-                        <span class="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase">${p.puestoAlcanzado || 'En curso'}</span>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 text-center">
-                        <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.minutosTiempo || '-'} min</p><p class="text-[9px] text-slate-400 font-bold uppercase">x Tiempo</p></div>
-                        <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.jugadoresCancha || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Jug/Cancha</p></div>
-                        <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.equiposParticipantes || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Equipos</p></div>
-                    </div>
+                    <div class="flex justify-between items-start mb-2"><div><h3 class="font-black text-lg text-slate-800 leading-tight">${p.nombreCampeonato}</h3><p class="text-[11px] text-slate-400 font-bold">📅 Inicio: ${p.fechaInicio || 'Por definir'}</p></div><span class="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase">${p.puestoAlcanzado || 'En curso'}</span></div>
+                    <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 text-center"><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.minutosTiempo || '-'} min</p><p class="text-[9px] text-slate-400 font-bold uppercase">x Tiempo</p></div><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.jugadoresCancha || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Jug/Cancha</p></div><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.equiposParticipantes || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Equipos</p></div></div>
                 </div>`).join("");
-        } catch (e) {
-            cont.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>";
-        }
+        } catch (e) { cont.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
     }
 
     function cambiarTabCampeonato(modo) {
         modoCampeonato = modo;
-        const tabExist = document.getElementById('tabCampExistente');
-        const tabNuevo = document.getElementById('tabCampNuevo');
-        const blkExist = document.getElementById('bloqueCampExistente');
-        const blkNuevo = document.getElementById('bloqueCampNuevo');
+        const tabExist = document.getElementById('tabCampExistente'), tabNuevo = document.getElementById('tabCampNuevo');
+        const blkExist = document.getElementById('bloqueCampExistente'), blkNuevo = document.getElementById('bloqueCampNuevo');
         if (modo === 'existente') {
-            tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow";
-            tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
+            tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow"; tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
             blkExist.classList.remove('hidden'); blkNuevo.classList.add('hidden');
         } else {
-            tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow";
-            tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
+            tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow"; tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
             blkNuevo.classList.remove('hidden'); blkExist.classList.add('hidden');
         }
     }
 
     function abrirModalInscribirCampeonato() {
-        const sel = document.getElementById('campExistenteSel');
-        let html = "<option value=''>Seleccione un campeonato del colegio...</option>";
-        campeonatosActual.disponibles.forEach(c => html += `<option value="${c.idCampeonato}">${c.nombre} (${c.fechaInicio || 'S/F'})</option>`);
-        sel.innerHTML = html;
+        document.getElementById('campExistenteSel').innerHTML = "<option value=''>Seleccione un campeonato del colegio...</option>" + campeonatosActual.disponibles.map(c => `<option value="${c.idCampeonato}">${c.nombre} (${c.fechaInicio || 'S/F'})</option>`).join("");
         ['campNombreNuevo', 'campFechaInicio', 'campMinutos', 'campJugadores', 'campEquipos'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('campPuesto').value = "En curso";
         cambiarTabCampeonato(campeonatosActual.disponibles.length > 0 ? 'existente' : 'nuevo');
@@ -520,43 +481,27 @@
     function cerrarModalInscribirCampeonato() { document.getElementById('modalInscribirCampeonato').classList.replace('flex', 'hidden'); }
 
     async function guardarInscripcionCampeonato() {
-        const idExistente = document.getElementById('campExistenteSel').value;
-        const nombreNuevo = document.getElementById('campNombreNuevo').value.trim();
-        const fechaInicio = document.getElementById('campFechaInicio').value;
+        const idExistente = document.getElementById('campExistenteSel').value, nombreNuevo = document.getElementById('campNombreNuevo').value.trim(), fechaInicio = document.getElementById('campFechaInicio').value;
         if (modoCampeonato === 'existente' && !idExistente) return mostrarAlerta("Seleccione un campeonato existente o cambie a 'Crear Nuevo'.");
         if (modoCampeonato === 'nuevo' && (!nombreNuevo || !fechaInicio)) return mostrarAlerta("Ingrese el nombre del campeonato y la fecha de inicio.");
-
         const btn = document.getElementById('btnGuardarCampeonato'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append('action', 'inscribirEquipoCampeonato');
-            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
-            formData.append('idColegio', estadoGlobal.idColegio);
-            formData.append('modo', modoCampeonato);
-            formData.append('idCampeonatoExistente', idExistente);
-            formData.append('nombreNuevo', nombreNuevo);
-            formData.append('fechaInicio', fechaInicio);
-            formData.append('minutosTiempo', document.getElementById('campMinutos').value.trim());
-            formData.append('jugadoresCancha', document.getElementById('campJugadores').value.trim());
-            formData.append('equiposParticipantes', document.getElementById('campEquipos').value.trim());
-            formData.append('puestoAlcanzado', document.getElementById('campPuesto').value.trim() || 'En curso');
-
+            formData.append('action', 'inscribirEquipoCampeonato'); formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado); formData.append('idColegio', estadoGlobal.idColegio);
+            formData.append('modo', modoCampeonato); formData.append('idCampeonatoExistente', idExistente); formData.append('nombreNuevo', nombreNuevo); formData.append('fechaInicio', fechaInicio);
+            formData.append('minutosTiempo', document.getElementById('campMinutos').value.trim()); formData.append('jugadoresCancha', document.getElementById('campJugadores').value.trim());
+            formData.append('equiposParticipantes', document.getElementById('campEquipos').value.trim()); formData.append('puestoAlcanzado', document.getElementById('campPuesto').value.trim() || 'En curso');
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalInscribirCampeonato(); cargarCampeonatosProfe(); }
-            else throw new Error(data.error || "Error al guardar campeonato.");
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalInscribirCampeonato(); cargarCampeonatosProfe(); } else throw new Error(data.error || "Error al guardar campeonato.");
         } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "💾 Guardar Campeonato"; btn.disabled = false; }
     }
 
     function abrirModalEditarCampeonato(idParticipacion) {
-        const p = campeonatosActual.participaciones.find(x => x.idParticipacion === idParticipacion);
-        if (!p) return;
-        document.getElementById('ecIdParticipacion').value = p.idParticipacion;
-        document.getElementById('ecTitulo').innerText = p.nombreCampeonato;
-        document.getElementById('ecMinutos').value = p.minutosTiempo || '';
-        document.getElementById('ecJugadores').value = p.jugadoresCancha || '';
-        document.getElementById('ecEquipos').value = p.equiposParticipantes || '';
-        document.getElementById('ecPuesto').value = p.puestoAlcanzado || 'En curso';
+        const p = campeonatosActual.participaciones.find(x => x.idParticipacion === idParticipacion); if (!p) return;
+        document.getElementById('ecIdParticipacion').value = p.idParticipacion; document.getElementById('ecTitulo').innerText = p.nombreCampeonato;
+        document.getElementById('ecMinutos').value = p.minutosTiempo || ''; document.getElementById('ecJugadores').value = p.jugadoresCancha || '';
+        document.getElementById('ecEquipos').value = p.equiposParticipantes || ''; document.getElementById('ecPuesto').value = p.puestoAlcanzado || 'En curso';
         document.getElementById('modalEditarCampeonato').classList.replace('hidden', 'flex');
     }
     function cerrarModalEditarCampeonato() { document.getElementById('modalEditarCampeonato').classList.replace('flex', 'hidden'); }
@@ -565,22 +510,17 @@
         const btn = document.getElementById('btnGuardarEdicionCamp'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append('action', 'editarParticipacionCampeonato');
-            formData.append('idParticipacion', document.getElementById('ecIdParticipacion').value);
-            formData.append('minutosTiempo', document.getElementById('ecMinutos').value.trim());
-            formData.append('jugadoresCancha', document.getElementById('ecJugadores').value.trim());
-            formData.append('equiposParticipantes', document.getElementById('ecEquipos').value.trim());
-            formData.append('puestoAlcanzado', document.getElementById('ecPuesto').value.trim() || 'En curso');
-
+            formData.append('action', 'editarParticipacionCampeonato'); formData.append('idParticipacion', document.getElementById('ecIdParticipacion').value);
+            formData.append('minutosTiempo', document.getElementById('ecMinutos').value.trim()); formData.append('jugadoresCancha', document.getElementById('ecJugadores').value.trim());
+            formData.append('equiposParticipantes', document.getElementById('ecEquipos').value.trim()); formData.append('puestoAlcanzado', document.getElementById('ecPuesto').value.trim() || 'En curso');
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarCampeonato(); cargarCampeonatosProfe(); }
-            else throw new Error(data.error || "Error al actualizar.");
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarCampeonato(); cargarCampeonatosProfe(); } else throw new Error(data.error || "Error al actualizar.");
         } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "💾 Actualizar Datos"; btn.disabled = false; }
     }
 
     // ==========================================
-    // 5. SELECCIONADOS (FICHAS, EDICIÓN Y BAJA)
+    // 5. SELECCIONADOS (FICHAS, PADRES, EDICIÓN Y BAJA)
     // ==========================================
     async function cargarRosterProfe() {
         const grid = document.getElementById("gridSeleccionadosProfe");
@@ -590,20 +530,13 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerRoster&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&grados=${encodeURIComponent(eqInfo.categoria)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
             rosterActual = { seleccionados: data.seleccionados || [], disponibles: data.disponibles || [] };
-
-            if (rosterActual.seleccionados.length === 0) {
-                grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 text-xs'>Aún no hay jugadores en esta selección.</p>";
-                return;
-            }
+            if (rosterActual.seleccionados.length === 0) { grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 text-xs'>Aún no hay jugadores en esta selección.</p>"; return; }
             grid.innerHTML = rosterActual.seleccionados.map(j => `
                 <div onclick="abrirModalEditarJugador('${j.dni}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative cursor-pointer hover:shadow-md active:scale-95 transition">
                     <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2.5 py-1 text-xs rounded-bl-xl z-10">${j.camiseta || '-'}</span>
                     <span class="absolute top-2 left-2 bg-white/90 text-slate-700 p-1 rounded-full text-[10px] shadow">✏️</span>
                     <img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100">
-                    <div class="p-3 text-center">
-                        <p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p>
-                        <p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p>
-                    </div>
+                    <div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p></div>
                 </div>`).join("");
         } catch (e) { grid.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
     }
@@ -630,7 +563,7 @@
     function abrirModalNuevoJugador() {
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
         document.getElementById('njGrado').innerHTML = eqInfo.categoria.split(',').map(g => `<option value="${g.trim()}">${g.trim()}</option>`).join('');
-        ['njDni', 'njNombres', 'njApellidos', 'njCamiseta', 'njInputFoto'].forEach(id => document.getElementById(id).value = "");
+        ['njDni', 'njNombres', 'njApellidos', 'njCamiseta', 'njInputFoto', 'njNombrePadre', 'njTelPadre'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Foto";
         base64FotoNuevo = "";
         document.getElementById('modalNuevoJugador').classList.replace('hidden', 'flex');
@@ -648,6 +581,8 @@
             formData.append('apellidos', document.getElementById('njApellidos').value.trim());
             formData.append('grado', document.getElementById('njGrado').value);
             formData.append('camiseta', document.getElementById('njCamiseta').value.trim());
+            formData.append('nombrePadre', document.getElementById('njNombrePadre').value.trim());
+            formData.append('telefonoPadre', document.getElementById('njTelPadre').value.trim());
             formData.append('idColegio', estadoGlobal.idColegio);
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             if (base64FotoNuevo) formData.append('fotoBase64', base64FotoNuevo);
@@ -667,6 +602,8 @@
         document.getElementById('ejNombres').value = j.nombres;
         document.getElementById('ejApellidos').value = j.apellidos;
         document.getElementById('ejCamiseta').value = j.camiseta || '';
+        document.getElementById('ejNombrePadre').value = j.nombrePadre || '';
+        document.getElementById('ejTelPadre').value = j.telefonoPadre || '';
         document.getElementById('ejPreviewFoto').src = j.fotoUrl;
         document.getElementById('ejInputFoto').value = "";
         document.getElementById('ejDetalleBaja').value = "";
@@ -691,6 +628,8 @@
             formData.append('apellidos', document.getElementById('ejApellidos').value.trim());
             formData.append('grado', document.getElementById('ejGrado').value);
             formData.append('camiseta', document.getElementById('ejCamiseta').value.trim());
+            formData.append('nombrePadre', document.getElementById('ejNombrePadre').value.trim());
+            formData.append('telefonoPadre', document.getElementById('ejTelPadre').value.trim());
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             if (base64FotoEditar) formData.append('fotoBase64', base64FotoEditar);
 
@@ -702,20 +641,15 @@
     }
 
     async function quitarJugadorDeSeleccion() {
-        const motivoSel = document.getElementById('ejMotivoBaja').value;
-        const detalle = document.getElementById('ejDetalleBaja').value.trim();
+        const motivoSel = document.getElementById('ejMotivoBaja').value, detalle = document.getElementById('ejDetalleBaja').value.trim();
         const btn = document.getElementById('btnQuitarJugador'); btn.innerText = "Procesando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append('action', 'quitarJugadorDeSeleccion');
-            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
-            formData.append('dni', document.getElementById('ejDni').value);
-            formData.append('motivo', detalle ? `${motivoSel}: ${detalle}` : motivoSel);
-
+            formData.append('action', 'quitarJugadorDeSeleccion'); formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('dni', document.getElementById('ejDni').value); formData.append('motivo', detalle ? `${motivoSel}: ${detalle}` : motivoSel);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarJugador(); cargarRosterProfe(); }
-            else throw new Error(data.error || "Error al quitar jugador.");
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarJugador(); cargarRosterProfe(); } else throw new Error(data.error || "Error al quitar jugador.");
         } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "Confirmar Retiro"; btn.disabled = false; }
     }
 
@@ -723,14 +657,7 @@
         const cont = document.getElementById("listaDisponiblesModal");
         cont.innerHTML = rosterActual.disponibles.length === 0
             ? "<p class='text-center text-slate-400 text-xs py-6'>No hay más alumnos disponibles en estos grados.</p>"
-            : rosterActual.disponibles.map(j => `
-                <div class="flex items-center justify-between py-3">
-                    <div class="flex items-center gap-3">
-                        <img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover bg-slate-100">
-                        <div><p class="font-bold text-sm text-slate-800 leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase">${j.grado}</p></div>
-                    </div>
-                    <button onclick="agregarExistenteAlEquipo('${j.dni}', '${j.camiseta || ''}', this)" class="bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-lg hover:bg-blue-200 transition">+ Sumar</button>
-                </div>`).join("");
+            : rosterActual.disponibles.map(j => `<div class="flex items-center justify-between py-3"><div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover bg-slate-100"><div><p class="font-bold text-sm text-slate-800 leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase">${j.grado}</p></div></div><button onclick="agregarExistenteAlEquipo('${j.dni}', '${j.camiseta || ''}', this)" class="bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-lg hover:bg-blue-200 transition">+ Sumar</button></div>`).join("");
         document.getElementById('modalAgregarExistente').classList.replace('hidden', 'flex');
     }
     function cerrarModalAgregarExistente() { document.getElementById('modalAgregarExistente').classList.replace('flex', 'hidden'); }
@@ -739,8 +666,7 @@
         btn.innerText = "..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append('action', 'agregarJugadorASeleccion');
-            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('action', 'agregarJugadorASeleccion'); formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             formData.append('dni', dni); formData.append('camiseta', camiseta);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
@@ -759,14 +685,10 @@
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerEncuentrosEquipoCoordinador&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
-            if (!data.encuentros || data.encuentros.length === 0) {
-                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>No hay encuentros programados.</p>";
-                return;
-            }
+            if (!data.encuentros || data.encuentros.length === 0) { contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>No hay encuentros programados.</p>"; return; }
             const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             contenedor.innerHTML = data.encuentros.map(e => {
-                let badgeEstado = '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>';
-                let marcadorHtml = "";
+                let badgeEstado = '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>', marcadorHtml = "";
                 if (e.estado === 'Pendiente Aprobación') {
                     badgeEstado = '<span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold animate-pulse">⏳ PENDIENTE APROBACIÓN</span>';
                     marcadorHtml = `<div class="mt-2 inline-block bg-amber-50 border border-amber-200 text-amber-900 font-black text-xs px-2.5 py-1 rounded-lg">Marcador reportado: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
@@ -774,36 +696,23 @@
                     badgeEstado = '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">✅ APROBADO</span>';
                     marcadorHtml = `<div class="mt-2 inline-block bg-slate-800 text-white font-black text-xs px-3 py-1 rounded-lg">Final: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
                 }
-                return `
-                <div onclick="abrirDetalleEncuentro('${e.idEncuentro}')" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition">
-                    <div class="flex justify-between items-start gap-2 mb-1"><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">vs Rival</p>${badgeEstado}</div>
-                    <h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-2">${e.rival}</h3>
-                    <div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div>
-                    <div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div>
-                    ${marcadorHtml}
-                    <p class="text-[10px] text-blue-600 font-bold mt-2 text-right">Tocar para ver detalle →</p>
-                </div>`;
+                return `<div onclick="abrirDetalleEncuentro('${e.idEncuentro}')" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition"><div class="flex justify-between items-start gap-2 mb-1"><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">vs Rival</p>${badgeEstado}</div><h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-2">${e.rival}</h3><div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div><div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div>${marcadorHtml}<p class="text-[10px] text-blue-600 font-bold mt-2 text-right">Tocar para ver detalle →</p></div>`;
             }).join("");
         } catch (e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
     }
 
     async function abrirDetalleEncuentro(idEncuentro) {
-        const modal = document.getElementById("modalDetalleEncuentro");
-        const body = document.getElementById("bodyDetalleEncuentro");
+        const modal = document.getElementById("modalDetalleEncuentro"), body = document.getElementById("bodyDetalleEncuentro");
         body.innerHTML = "<p class='text-center text-slate-500 py-10 animate-pulse text-xs'>Cargando detalle del partido...</p>";
         modal.classList.replace("hidden", "flex");
-
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerDetalleEncuentro&idEncuentro=${encodeURIComponent(idEncuentro)}`);
             const d = await res.json();
             if (d.error) throw new Error(d.error);
-
             detalleEncuentroActual = d;
             eventosEditables = (d.eventos || []).map(ev => ({ minuto: ev.minuto, tipo: ev.tipo, dni: ev.dni.toString().trim() }));
-
             const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const esDT = estadoGlobal.rol === 'Profesor';
-            const puedeEditarDT = esDT && d.estado === 'Pendiente Aprobación';
+            const esDT = estadoGlobal.rol === 'Profesor', puedeEditarDT = esDT && d.estado === 'Pendiente Aprobación';
 
             let bloqueEstado = "";
             if (d.estado === 'Activo') {
@@ -815,11 +724,8 @@
                 bloqueEstado = `<div class="bg-slate-900 text-white rounded-xl p-4 text-center"><span class="text-[10px] font-bold uppercase text-blue-300">✅ Resultado Oficial Aprobado</span><p class="text-3xl font-black mt-1">${d.golesPropio} - ${d.golesRival}</p>${d.padreRegistrador ? `<p class="text-[10px] text-slate-400 mt-1">Mesa de Control: ${d.padreRegistrador}</p>` : ''}</div>`;
             }
 
-            const bloqueIncidencias = (d.estado === 'Cerrado/Aprobado' && d.incidencias)
-                ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Incidencias</p><p class="text-slate-700">${d.incidencias}</p></div>` : '';
-
-            const titulares = (d.convocados || []).filter(c => c.rol === 'Titular');
-            const banca = (d.convocados || []).filter(c => c.rol !== 'Titular');
+            const bloqueIncidencias = (d.estado === 'Cerrado/Aprobado' && d.incidencias) ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Incidencias</p><p class="text-slate-700">${d.incidencias}</p></div>` : '';
+            const titulares = (d.convocados || []).filter(c => c.rol === 'Titular'), banca = (d.convocados || []).filter(c => c.rol !== 'Titular');
             const chipJug = (c, color) => `<span class="inline-block ${color} text-[10px] font-bold px-2 py-1 rounded-lg mr-1 mb-1">#${c.camiseta} ${c.nombre}</span>`;
 
             let seccionCronologia = "";
@@ -828,31 +734,20 @@
                 seccionCronologia = `<div><p class="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-1">✏️ Revisar / Corregir Eventos (Antes de aprobar)</p><div id="listaEventosEditables" class="bg-white border border-slate-200 rounded-xl p-2 space-y-2 mb-2"></div><div class="bg-slate-50 border border-slate-200 rounded-xl p-2 space-y-1.5"><p class="text-[10px] font-bold text-slate-500 uppercase">+ Agregar evento faltante</p><div class="grid grid-cols-3 gap-1.5"><input type="text" id="nuevoEvMin" placeholder="1T 15'" value="1T 1'" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white"><select id="nuevoEvTipo" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white"><option value="Gol">⚽ Gol</option><option value="Asistencia">👟 Asist.</option><option value="Amarilla">🟨 Amarilla</option><option value="Roja">🟥 Roja</option><option value="Entra">⬆️ Entra</option><option value="Sale">⬇️ Sale</option></select><select id="nuevoEvDni" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white">${optsJug}</select></div><button onclick="agregarEventoDT()" class="w-full bg-slate-800 text-white text-[11px] font-bold py-1.5 rounded-lg hover:bg-slate-900 transition">+ Añadir a la lista</button></div></div>`;
             } else {
                 const iconos = { "Gol": "⚽", "Asistencia": "👟", "Amarilla": "🟨", "Roja": "🟥", "Sale": "⬇️", "Entra": "⬆️" };
-                const htmlEventos = d.eventos && d.eventos.length > 0
-                    ? d.eventos.map(ev => `<div class="flex items-center gap-2 text-xs py-1.5 border-b border-slate-100"><span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-2 py-0.5 rounded">${ev.minuto}</span><span>${iconos[ev.tipo] || '•'}</span><span class="font-bold text-slate-800">${ev.tipo}</span><span class="text-slate-500">— #${ev.camiseta} ${ev.jugador}</span></div>`).join("")
-                    : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
+                const htmlEventos = d.eventos && d.eventos.length > 0 ? d.eventos.map(ev => `<div class="flex items-center gap-2 text-xs py-1.5 border-b border-slate-100"><span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-2 py-0.5 rounded">${ev.minuto}</span><span>${iconos[ev.tipo] || '•'}</span><span class="font-bold text-slate-800">${ev.tipo}</span><span class="text-slate-500">— #${ev.camiseta} ${ev.jugador}</span></div>`).join("") : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
                 seccionCronologia = `<div><p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">🕒 Cronología de Eventos</p><div class="bg-white border border-slate-200 rounded-xl px-3 py-1">${htmlEventos}</div></div>`;
             }
 
             body.innerHTML = `<div class="space-y-4"><div><p class="text-[10px] font-bold text-indigo-600 uppercase">${d.campeonato}</p><h4 class="text-xl font-black text-slate-800 uppercase">vs ${d.rival}</h4><p class="text-xs text-slate-500 font-bold">📅 ${formatDate(d.fechaPartido)} • 🏟️ ${d.lugar}</p></div>${bloqueEstado}${bloqueIncidencias}${seccionCronologia}<div><p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">👥 Plantel Convocado</p>${titulares.length > 0 ? `<div class="mb-2"><p class="text-[10px] font-bold text-green-700 mb-1">Titulares:</p>${titulares.map(c => chipJug(c, 'bg-green-100 text-green-800')).join('')}</div>` : ''}${banca.length > 0 ? `<div><p class="text-[10px] font-bold text-slate-500 mb-1">Banca / Convocados:</p>${banca.map(c => chipJug(c, 'bg-slate-100 text-slate-700')).join('')}</div>` : ''}</div></div>`;
-
             if (puedeEditarDT) renderEventosEditablesDT();
         } catch (e) { body.innerHTML = `<p class='text-center text-red-500 text-xs py-8'>Error: ${e.message}</p>`; }
     }
 
     function renderEventosEditablesDT() {
-        const cont = document.getElementById("listaEventosEditables");
-        if (!cont || !detalleEncuentroActual) return;
+        const cont = document.getElementById("listaEventosEditables"); if (!cont || !detalleEncuentroActual) return;
         if (eventosEditables.length === 0) { cont.innerHTML = "<p class='text-center text-slate-400 text-xs py-2'>Sin eventos registrados.</p>"; return; }
-        const tipos = ["Gol", "Asistencia", "Amarilla", "Roja", "Entra", "Sale"];
-        const convocados = detalleEncuentroActual.convocados || [];
-        cont.innerHTML = eventosEditables.map((ev, idx) => `
-            <div class="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-                <input type="text" value="${ev.minuto}" onchange="actualizarEventoDT(${idx}, 'minuto', this.value)" class="w-14 border border-slate-300 rounded px-1 py-1 text-[10px] font-mono font-bold text-center bg-white">
-                <select onchange="actualizarEventoDT(${idx}, 'tipo', this.value)" class="border border-slate-300 rounded px-1 py-1 text-[10px] font-bold bg-white">${tipos.map(t => `<option value="${t}" ${t === ev.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>
-                <select onchange="actualizarEventoDT(${idx}, 'dni', this.value)" class="flex-1 min-w-0 border border-slate-300 rounded px-1 py-1 text-[10px] font-bold bg-white truncate">${convocados.map(c => `<option value="${c.dni}" ${c.dni == ev.dni ? 'selected' : ''}>#${c.camiseta} ${c.nombre}</option>`).join('')}</select>
-                <button onclick="eliminarEventoDT(${idx})" class="bg-red-100 text-red-600 font-bold text-[10px] px-2 py-1 rounded hover:bg-red-200">✕</button>
-            </div>`).join("");
+        const tipos = ["Gol", "Asistencia", "Amarilla", "Roja", "Entra", "Sale"], convocados = detalleEncuentroActual.convocados || [];
+        cont.innerHTML = eventosEditables.map((ev, idx) => `<div class="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-lg border border-slate-200"><input type="text" value="${ev.minuto}" onchange="actualizarEventoDT(${idx}, 'minuto', this.value)" class="w-14 border border-slate-300 rounded px-1 py-1 text-[10px] font-mono font-bold text-center bg-white"><select onchange="actualizarEventoDT(${idx}, 'tipo', this.value)" class="border border-slate-300 rounded px-1 py-1 text-[10px] font-bold bg-white">${tipos.map(t => `<option value="${t}" ${t === ev.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select><select onchange="actualizarEventoDT(${idx}, 'dni', this.value)" class="flex-1 min-w-0 border border-slate-300 rounded px-1 py-1 text-[10px] font-bold bg-white truncate">${convocados.map(c => `<option value="${c.dni}" ${c.dni == ev.dni ? 'selected' : ''}>#${c.camiseta} ${c.nombre}</option>`).join('')}</select><button onclick="eliminarEventoDT(${idx})" class="bg-red-100 text-red-600 font-bold text-[10px] px-2 py-1 rounded hover:bg-red-200">✕</button></div>`).join("");
     }
 
     function actualizarEventoDT(idx, campo, valor) { if (!eventosEditables[idx]) return; eventosEditables[idx][campo] = valor; if (campo === 'tipo') recalcularGolesDT(); }
@@ -871,13 +766,11 @@
         const btn = document.getElementById("btnAprobarPartido"); btn.innerText = "Aprobando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append("action", "aprobarEncuentroDT");
-            formData.append("idEncuentro", idEncuentro);
+            formData.append("action", "aprobarEncuentroDT"); formData.append("idEncuentro", idEncuentro);
             formData.append("golesPropio", document.getElementById("aprGolesPropio").value);
             formData.append("golesRival", document.getElementById("aprGolesRival").value);
             formData.append("incidencias", document.getElementById("aprIncidencias").value.trim());
             formData.append("eventos", JSON.stringify(eventosEditables));
-
             const res = await fetch(URL_BACKEND, { method: "POST", body: formData });
             const data = JSON.parse(await res.text());
             if (!data.exito) throw new Error(data.error || "Error al aprobar.");
@@ -913,18 +806,12 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
             if (!data.jugadores || data.jugadores.length === 0) { contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Primero debe agregar jugadores en Seleccionados.</p>"; return; }
-            contenedor.innerHTML = data.jugadores.map(j => `
-                <div class="flex items-center justify-between p-3 border-b border-slate-100" data-dni="${j.dni}">
-                    <div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover"><div><p class="font-bold text-slate-800 text-sm leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${j.grado}</p></div></div>
-                    <div class="flex gap-2"><button onclick="marcarAsistencia(this, 'Presente')" class="btn-asist bg-green-500 text-white font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-100 transition">P</button><button onclick="marcarAsistencia(this, 'Falta')" class="btn-asist bg-slate-200 text-slate-500 font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-50 transition hover:opacity-100">F</button></div>
-                    <input type="hidden" class="estado-asistencia-input" value="Presente">
-                </div>`).join("");
+            contenedor.innerHTML = data.jugadores.map(j => `<div class="flex items-center justify-between p-3 border-b border-slate-100" data-dni="${j.dni}"><div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover"><div><p class="font-bold text-slate-800 text-sm leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${j.grado}</p></div></div><div class="flex gap-2"><button onclick="marcarAsistencia(this, 'Presente')" class="btn-asist bg-green-500 text-white font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-100 transition">P</button><button onclick="marcarAsistencia(this, 'Falta')" class="btn-asist bg-slate-200 text-slate-500 font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-50 transition hover:opacity-100">F</button></div><input type="hidden" class="estado-asistencia-input" value="Presente"></div>`).join("");
         } catch (e) { contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>"; }
     }
 
     function marcarAsistencia(btnClick, estado) {
-        const cFila = btnClick.closest('.flex.items-center.justify-between');
-        const btns = cFila.querySelectorAll('.btn-asist');
+        const cFila = btnClick.closest('.flex.items-center.justify-between'), btns = cFila.querySelectorAll('.btn-asist');
         btns[0].classList.replace('bg-green-500', 'bg-slate-200'); btns[0].classList.replace('text-white', 'text-slate-500'); btns[0].classList.replace('opacity-100', 'opacity-50');
         btns[1].classList.replace('bg-red-500', 'bg-slate-200'); btns[1].classList.replace('text-white', 'text-slate-500'); btns[1].classList.replace('opacity-100', 'opacity-50');
         btnClick.classList.replace('bg-slate-200', estado === 'Presente' ? 'bg-green-500' : 'bg-red-500');
@@ -1000,6 +887,31 @@
         <h3 class="text-lg font-black text-slate-800 mb-2">Aviso del Sistema</h3>
         <p id="alertaMensaje" class="text-sm text-slate-500 mb-6 font-medium leading-snug"></p>
         <button onclick="cerrarAlerta()" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl hover:bg-slate-900 transition">Entendido</button>
+    </div>
+</div>
+
+<!-- Modal Nuevo Colegio y Coordinador (SuperAdmin) -->
+<div id="modalNuevoColegio" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-black"><span class="mr-2">🏫</span> Nuevo Colegio</h3>
+            <button onclick="cerrarModalNuevoColegio()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
+        </div>
+        <div class="overflow-y-auto pr-1 space-y-3">
+            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre del Colegio</label><input type="text" id="saNomColegio" placeholder="Ej. Colegio San José" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+            <div class="pt-2 border-t border-slate-100">
+                <p class="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-2">Primer Usuario Coordinador</p>
+                <div class="space-y-2.5">
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">DNI del Coordinador</label><input type="number" id="saDniCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="saNomCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="saApCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                    </div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp (Opcional)</label><input type="number" id="saTelCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                </div>
+            </div>
+        </div>
+        <button id="btnGuardarNuevoColegio" onclick="guardarNuevoColegio()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black transition shadow-lg">Crear Colegio y Coordinador</button>
     </div>
 </div>
 
@@ -1109,7 +1021,7 @@
     </div>
 </div>
 
-<!-- Modal Nuevo Jugador (DT) -->
+<!-- Modal Nuevo Jugador (DT - Incluye Datos del Padre) -->
 <div id="modalNuevoJugador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center mb-4">
@@ -1134,12 +1046,19 @@
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="njApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
             </div>
             <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Categoría Base</label><select id="njGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select></div>
+            <div class="pt-2 border-t border-slate-100">
+                <p class="text-[10px] font-black text-green-700 uppercase tracking-wider mb-2">👨‍👩‍👦 Contacto Padre / Apoderado</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre Padre</label><input type="text" id="njNombrePadre" placeholder="Ej. Carlos" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp</label><input type="number" id="njTelPadre" placeholder="999888777" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></div>
+                </div>
+            </div>
         </div>
         <button id="btnGuardarNuevoJugador" onclick="guardarNuevoJugador()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-blue-700 transition">Registrar y Agregar</button>
     </div>
 </div>
 
-<!-- Modal Editar Ficha de Jugador (DT) -->
+<!-- Modal Editar Ficha de Jugador (DT - Incluye Datos del Padre) -->
 <div id="modalEditarJugador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center mb-4">
@@ -1163,6 +1082,13 @@
             <div class="grid grid-cols-2 gap-2">
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ejNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ejApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+            </div>
+            <div class="pt-2 border-t border-slate-100">
+                <p class="text-[10px] font-black text-green-700 uppercase tracking-wider mb-2">👨‍👩‍👦 Contacto Padre / Apoderado</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre Padre</label><input type="text" id="ejNombrePadre" placeholder="Ej. Carlos" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp</label><input type="number" id="ejTelPadre" placeholder="999888777" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></div>
+                </div>
             </div>
             <button id="btnGuardarEdicion" onclick="guardarEdicionJugador()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-2 hover:bg-blue-700 transition shadow">💾 Guardar Cambios</button>
             <button onclick="document.getElementById('bloqueMotivoBaja').classList.toggle('hidden')" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl hover:bg-red-100 transition text-xs">🗑️ Quitar de esta Selección</button>
@@ -1208,6 +1134,19 @@
         <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-6">Plataforma Fútbol Escolar</p>
         <input type="number" id="dniLogin" placeholder="Ingrese su DNI" class="w-full border-2 border-slate-200 focus:border-green-500 outline-none p-3.5 rounded-xl mb-4 text-center text-xl font-bold text-slate-700">
         <button id="btnCargar" onclick="iniciarSesion()" class="bg-slate-800 text-white w-full py-4 rounded-xl text-lg font-bold hover:bg-slate-900 transition shadow-lg">Ingresar al Panel</button>
+    </div>
+
+    <!-- PANEL SUPERADMIN -->
+    <div id="superAdminMainView" class="hidden">
+        <div class="bg-black text-white p-5 rounded-b-3xl shadow-lg mb-6">
+            <h2 class="text-2xl font-black">Administración Global</h2>
+            <p class="text-xs text-amber-400 font-bold uppercase tracking-wider">Panel SuperAdmin</p>
+        </div>
+        <div class="px-4 flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800 text-lg">Colegios Clientes</h3>
+            <button onclick="abrirModalNuevoColegio()" class="text-xs bg-slate-900 text-white font-bold px-4 py-2 rounded-xl shadow hover:bg-black transition">+ Nuevo Colegio</button>
+        </div>
+        <div id="contenedorColegiosSA" class="px-4"></div>
     </div>
 
     <!-- PANEL COORDINADOR -->
@@ -1272,18 +1211,10 @@
                     <div class="text-left"><span class="text-[10px] font-bold uppercase tracking-wider opacity-75">Gestionar Torneos</span><h3 class="text-xl font-black">Campeonatos</h3></div>
                     <span class="text-4xl">🏆</span>
                 </button>
-                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
-                </button>
-                <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">✅</span><span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span>
-                </button>
-                <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">⚽</span><span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span>
-                </button>
-                <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">📊</span><span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span>
-                </button>
+                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center"><span class="text-4xl mb-3">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span></button>
+                <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center"><span class="text-4xl mb-3">✅</span><span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span></button>
+                <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center"><span class="text-4xl mb-3">⚽</span><span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span></button>
+                <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center"><span class="text-4xl mb-3">📊</span><span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span></button>
             </div>
         </div>
     </div>
@@ -1361,7 +1292,7 @@
                 <button onclick="abrirModalNuevoJugador()" class="bg-blue-600 text-white text-xs font-bold py-3 px-3 rounded-xl shadow hover:bg-blue-700 transition flex items-center justify-center gap-1"><span>➕</span> Nuevo Jugador</button>
                 <button onclick="abrirModalAgregarExistente()" class="bg-white text-blue-700 border border-blue-200 text-xs font-bold py-3 px-3 rounded-xl shadow-sm hover:bg-blue-50 transition flex items-center justify-center gap-1"><span>📥</span> Traer de la Base</button>
             </div>
-            <p class="text-[11px] text-slate-500 font-medium mb-3 text-center">Toca la ficha de un jugador para editar su foto o camiseta.</p>
+            <p class="text-[11px] text-slate-500 font-medium mb-3 text-center">Toca la ficha de un jugador para editar su foto, dorsal o datos del padre.</p>
             <div id="gridSeleccionadosProfe" class="grid grid-cols-2 gap-3 pb-10"></div>
         </div>
     </div>
