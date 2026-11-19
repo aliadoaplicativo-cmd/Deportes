@@ -29,6 +29,10 @@
     let base64FotoEditar = "";
     let contenedorEncuentrosActual = "listaEncuentrosProfe";
 
+    // Estado temporal para edición de eventos del DT antes de aprobar
+    let detalleActual = null;
+    let eventosEditables = [];
+
     // ==========================================
     // ALERTAS MODERNAS
     // ==========================================
@@ -384,7 +388,7 @@
     }
 
     // ==========================================
-    // 3. DASHBOARD DE CAMPEONATO Y JUGADORES
+    // 3. DASHBOARD DE CAMPEONATO Y JUGADORES (CON MINUTOS)
     // ==========================================
     async function cargarDashboardEquipo(contenedorID) {
         const cont = document.getElementById(contenedorID);
@@ -411,30 +415,32 @@
                 htmlJug = "<p class='text-center text-slate-400 text-xs py-6'>Sin jugadores registrados aún.</p>";
             } else {
                 htmlJug = `
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200">
                                 <th class="p-2.5 font-bold">Jugador</th>
-                                <th class="p-2 text-center font-bold">PJ</th>
-                                <th class="p-2 text-center font-bold">⚽</th>
-                                <th class="p-2 text-center font-bold">👟</th>
-                                <th class="p-2 text-center font-bold">🟨</th>
-                                <th class="p-2 text-center font-bold">🟥</th>
+                                <th class="p-1.5 text-center font-bold">PJ</th>
+                                <th class="p-1.5 text-center font-bold">Min</th>
+                                <th class="p-1.5 text-center font-bold">⚽</th>
+                                <th class="p-1.5 text-center font-bold">👟</th>
+                                <th class="p-1.5 text-center font-bold">🟨</th>
+                                <th class="p-1.5 text-center font-bold">🟥</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${data.jugadores.map(j => `
                                 <tr class="border-b border-slate-100 text-xs">
-                                    <td class="p-2.5 flex items-center gap-2">
+                                    <td class="p-2 flex items-center gap-2">
                                         <img src="${j.fotoUrl}" class="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0">
-                                        <span class="font-bold text-slate-800 truncate max-w-[110px]">${j.nombre}</span>
+                                        <span class="font-bold text-slate-800 truncate max-w-[95px]">${j.nombre}</span>
                                     </td>
-                                    <td class="p-2 text-center font-bold text-slate-600">${j.pj}</td>
-                                    <td class="p-2 text-center font-black text-green-600">${j.goles}</td>
-                                    <td class="p-2 text-center font-bold text-blue-600">${j.asistencias}</td>
-                                    <td class="p-2 text-center font-bold text-amber-500">${j.amarillas}</td>
-                                    <td class="p-2 text-center font-bold text-red-500">${j.rojas}</td>
+                                    <td class="p-1.5 text-center font-bold text-slate-600">${j.pj}</td>
+                                    <td class="p-1.5 text-center font-black text-indigo-600">${j.minutos || 0}'</td>
+                                    <td class="p-1.5 text-center font-black text-green-600">${j.goles}</td>
+                                    <td class="p-1.5 text-center font-bold text-blue-600">${j.asistencias}</td>
+                                    <td class="p-1.5 text-center font-bold text-amber-500">${j.amarillas}</td>
+                                    <td class="p-1.5 text-center font-bold text-red-500">${j.rojas}</td>
                                 </tr>
                             `).join("")}
                         </tbody>
@@ -961,7 +967,7 @@
     }
 
     // ==========================================
-    // 6. ENCUENTROS, DETALLE Y APROBACIÓN DEL DT
+    // 6. ENCUENTROS, DETALLE, EDICIÓN DE EVENTOS Y APROBACIÓN
     // ==========================================
     async function cargarModuloEncuentros(contenedorID) {
         contenedorEncuentrosActual = contenedorID;
@@ -1023,63 +1029,107 @@
             const d = await res.json();
             if (d.error) throw new Error(d.error);
 
-            const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const esDT = estadoGlobal.rol === 'Profesor';
+            detalleActual = d;
+            eventosEditables = (d.eventos || []).map(ev => ({ ...ev }));
+            renderDetalleEncuentro();
+        } catch (e) {
+            body.innerHTML = `<p class='text-center text-red-500 text-xs py-8'>Error: ${e.message}</p>`;
+        }
+    }
 
-            // Bloque superior según estado
-            let bloqueEstado = "";
-            if (d.estado === 'Activo') {
-                const linkMesa = `${URL_GITHUB}?token=${d.token}`;
-                bloqueEstado = `
-                <div class="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-                    <p class="text-xs font-black text-green-800 mb-1">🟢 Partido Activo (En espera de registro)</p>
-                    ${esDT ? `
-                    <div class="flex mt-2">
-                        <input type="text" id="detLinkMesa" value="${linkMesa}" readonly class="w-full border border-green-300 p-1.5 rounded-l-lg text-[10px] bg-white font-mono">
-                        <button onclick="copiarTextoInput('detLinkMesa')" class="bg-green-600 text-white px-3 rounded-r-lg text-[10px] font-bold">Copiar Link</button>
-                    </div>` : ''}
-                </div>`;
-            } else if (d.estado === 'Pendiente Aprobación') {
-                bloqueEstado = `
-                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-                    <p class="text-xs font-black text-amber-800">⏳ Pendiente de Aprobación del DT</p>
-                    <p class="text-[11px] text-amber-900">Registrado por: <b>${d.padreRegistrador || 'No indicado'}</b></p>
-                    ${esDT ? `
-                    <div class="grid grid-cols-2 gap-2 pt-2">
-                        <div>
-                            <label class="block text-[9px] font-bold text-amber-800 uppercase">Nuestros Goles</label>
-                            <input type="number" id="aprGolesPropio" value="${d.golesPropio}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-bold text-amber-800 uppercase">Goles Rival</label>
-                            <input type="number" id="aprGolesRival" value="${d.golesRival}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
-                        </div>
+    function renderDetalleEncuentro() {
+        const d = detalleActual;
+        const body = document.getElementById("bodyDetalleEncuentro");
+        const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const esDT = estadoGlobal.rol === 'Profesor';
+        const puedeEditarDT = esDT && d.estado === 'Pendiente Aprobación';
+
+        let bloqueEstado = "";
+        if (d.estado === 'Activo') {
+            const linkMesa = `${URL_GITHUB}?token=${d.token}`;
+            bloqueEstado = `
+            <div class="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                <p class="text-xs font-black text-green-800 mb-1">🟢 Partido Activo (En espera de registro)</p>
+                ${esDT ? `
+                <div class="flex mt-2">
+                    <input type="text" id="detLinkMesa" value="${linkMesa}" readonly class="w-full border border-green-300 p-1.5 rounded-l-lg text-[10px] bg-white font-mono">
+                    <button onclick="copiarTextoInput('detLinkMesa')" class="bg-green-600 text-white px-3 rounded-r-lg text-[10px] font-bold">Copiar Link</button>
+                </div>` : ''}
+            </div>`;
+        } else if (d.estado === 'Pendiente Aprobación') {
+            bloqueEstado = `
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                <p class="text-xs font-black text-amber-800">⏳ Pendiente de Aprobación del DT</p>
+                <p class="text-[11px] text-amber-900">Registrado por: <b>${d.padreRegistrador || 'No indicado'}</b></p>
+                ${esDT ? `
+                <div class="grid grid-cols-2 gap-2 pt-2">
+                    <div>
+                        <label class="block text-[9px] font-bold text-amber-800 uppercase">Nuestros Goles</label>
+                        <input type="number" id="aprGolesPropio" value="${d.golesPropio}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
                     </div>
                     <div>
-                        <label class="block text-[9px] font-bold text-amber-800 uppercase">Incidencias / Observaciones</label>
-                        <textarea id="aprIncidencias" rows="2" class="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white">${d.incidencias || ''}</textarea>
+                        <label class="block text-[9px] font-bold text-amber-800 uppercase">Goles Rival</label>
+                        <input type="number" id="aprGolesRival" value="${d.golesRival}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
                     </div>
-                    <button id="btnAprobarPartido" onclick="aprobarEncuentro('${d.idEncuentro}')" class="w-full bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-xl text-xs shadow transition">✅ Aprobar Partido Oficialmente</button>
-                    ` : `<p class="text-lg font-black text-slate-800 text-center">Marcador: ${d.golesPropio} - ${d.golesRival}</p>`}
-                </div>`;
-            } else {
-                bloqueEstado = `
-                <div class="bg-slate-900 text-white rounded-xl p-4 text-center">
-                    <span class="text-[10px] font-bold uppercase text-blue-300">✅ Resultado Oficial Aprobado</span>
-                    <p class="text-3xl font-black mt-1">${d.golesPropio} - ${d.golesRival}</p>
-                    ${d.padreRegistrador ? `<p class="text-[10px] text-slate-400 mt-1">Mesa de Control: ${d.padreRegistrador}</p>` : ''}
-                </div>`;
-            }
+                </div>
+                <div>
+                    <label class="block text-[9px] font-bold text-amber-800 uppercase">Incidencias / Observaciones</label>
+                    <textarea id="aprIncidencias" rows="2" class="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white">${d.incidencias || ''}</textarea>
+                </div>
+                <button id="btnAprobarPartido" onclick="aprobarEncuentro('${d.idEncuentro}')" class="w-full bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-xl text-xs shadow transition">✅ Aprobar Partido Oficialmente</button>
+                ` : `<p class="text-lg font-black text-slate-800 text-center">Marcador: ${d.golesPropio} - ${d.golesRival}</p>`}
+            </div>`;
+        } else {
+            bloqueEstado = `
+            <div class="bg-slate-900 text-white rounded-xl p-4 text-center">
+                <span class="text-[10px] font-bold uppercase text-blue-300">✅ Resultado Oficial Aprobado</span>
+                <p class="text-3xl font-black mt-1">${d.golesPropio} - ${d.golesRival}</p>
+                ${d.padreRegistrador ? `<p class="text-[10px] text-slate-400 mt-1">Mesa de Control: ${d.padreRegistrador}</p>` : ''}
+            </div>`;
+        }
 
-            // Incidencias (cuando ya está aprobado)
-            const bloqueIncidencias = (d.estado === 'Cerrado/Aprobado' && d.incidencias)
-                ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Incidencias</p><p class="text-slate-700">${d.incidencias}</p></div>`
-                : '';
+        const bloqueIncidencias = (d.estado === 'Cerrado/Aprobado' && d.incidencias)
+            ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Incidencias</p><p class="text-slate-700">${d.incidencias}</p></div>`
+            : '';
 
-            // Cronología de eventos
-            const iconos = { "Gol": "⚽", "Asistencia": "👟", "Amarilla": "🟨", "Roja": "🟥", "Sale": "⬇️", "Entra": "⬆️" };
-            const htmlEventos = d.eventos && d.eventos.length > 0
-                ? d.eventos.map(ev => `
+        const iconos = { "Gol": "⚽", "Asistencia": "👟", "Amarilla": "🟨", "Roja": "🟥", "Sale": "⬇️", "Entra": "⬆️" };
+        let htmlEventos = "";
+
+        if (puedeEditarDT) {
+            const optsJugadores = (d.convocados || []).map(c => `<option value="${c.dni}">#${c.camiseta} ${c.nombre}</option>`).join("");
+            htmlEventos = eventosEditables.length > 0
+                ? eventosEditables.map((ev, idx) => `
+                    <div class="flex items-center justify-between gap-1.5 text-xs py-2 border-b border-slate-100">
+                        <span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0">${ev.minuto}</span>
+                        <span class="shrink-0">${iconos[ev.tipo] || '•'} <b>${ev.tipo}</b></span>
+                        <select onchange="cambiarJugadorEvento(${idx}, this.value)" class="flex-1 border border-slate-300 rounded-lg p-1 text-[11px] font-bold bg-white min-w-0">
+                            ${(d.convocados || []).map(c => `<option value="${c.dni}" ${c.dni == ev.dni ? 'selected' : ''}>#${c.camiseta} ${c.nombre}</option>`).join("")}
+                        </select>
+                        <button onclick="eliminarEventoDT(${idx})" class="bg-red-50 text-red-600 px-2 py-1 rounded-lg text-[10px] font-bold shrink-0" title="Eliminar evento">✕</button>
+                    </div>`).join("")
+                : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
+
+            // Formulario rápido para agregar un evento faltante
+            htmlEventos += `
+                <div class="mt-3 pt-2 border-t border-slate-200 space-y-2">
+                    <p class="text-[10px] font-bold text-blue-600 uppercase">+ Agregar evento faltante</p>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <input type="text" id="nuevoEvMin" placeholder="Ej. 2T 15'" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold">
+                        <select id="nuevoEvTipo" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white">
+                            <option value="Gol">⚽ Gol</option>
+                            <option value="Asistencia">👟 Asistencia</option>
+                            <option value="Amarilla">🟨 Amarilla</option>
+                            <option value="Roja">🟥 Roja</option>
+                            <option value="Entra">⬆️ Entra</option>
+                            <option value="Sale">⬇️ Sale</option>
+                        </select>
+                        <select id="nuevoEvDni" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white">${optsJugadores}</select>
+                    </div>
+                    <button onclick="agregarEventoDT()" class="w-full bg-blue-50 text-blue-700 border border-blue-200 font-bold py-1.5 rounded-lg text-[11px] hover:bg-blue-100 transition">+ Añadir a la cronología</button>
+                </div>`;
+        } else {
+            htmlEventos = eventosEditables.length > 0
+                ? eventosEditables.map(ev => `
                     <div class="flex items-center gap-2 text-xs py-1.5 border-b border-slate-100">
                         <span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-2 py-0.5 rounded">${ev.minuto}</span>
                         <span>${iconos[ev.tipo] || '•'}</span>
@@ -1087,38 +1137,73 @@
                         <span class="text-slate-500">— #${ev.camiseta} ${ev.jugador}</span>
                     </div>`).join("")
                 : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
-
-            // Convocados (Titulares y Banca)
-            const titulares = (d.convocados || []).filter(c => c.rol === 'Titular');
-            const banca = (d.convocados || []).filter(c => c.rol !== 'Titular');
-            const chipJug = (c, color) => `<span class="inline-block ${color} text-[10px] font-bold px-2 py-1 rounded-lg mr-1 mb-1">#${c.camiseta} ${c.nombre}</span>`;
-
-            body.innerHTML = `
-                <div class="space-y-4">
-                    <div>
-                        <p class="text-[10px] font-bold text-indigo-600 uppercase">${d.campeonato}</p>
-                        <h4 class="text-xl font-black text-slate-800 uppercase">vs ${d.rival}</h4>
-                        <p class="text-xs text-slate-500 font-bold">📅 ${formatDate(d.fechaPartido)} • 🏟️ ${d.lugar}</p>
-                    </div>
-
-                    ${bloqueEstado}
-                    ${bloqueIncidencias}
-
-                    <div>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">🕒 Cronología de Eventos</p>
-                        <div class="bg-white border border-slate-200 rounded-xl px-3 py-1">${htmlEventos}</div>
-                    </div>
-
-                    <div>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">👥 Plantel Convocado</p>
-                        ${titulares.length > 0 ? `<div class="mb-2"><p class="text-[10px] font-bold text-green-700 mb-1">Titulares:</p>${titulares.map(c => chipJug(c, 'bg-green-100 text-green-800')).join('')}</div>` : ''}
-                        ${banca.length > 0 ? `<div><p class="text-[10px] font-bold text-slate-500 mb-1">Banca / Convocados:</p>${banca.map(c => chipJug(c, 'bg-slate-100 text-slate-700')).join('')}</div>` : ''}
-                    </div>
-                </div>
-            `;
-        } catch (e) {
-            body.innerHTML = `<p class='text-center text-red-500 text-xs py-8'>Error: ${e.message}</p>`;
         }
+
+        const titulares = (d.convocados || []).filter(c => c.rol === 'Titular');
+        const banca = (d.convocados || []).filter(c => c.rol !== 'Titular');
+        const chipJug = (c, color) => `<span class="inline-block ${color} text-[10px] font-bold px-2 py-1 rounded-lg mr-1 mb-1">#${c.camiseta} ${c.nombre}</span>`;
+
+        body.innerHTML = `
+            <div class="space-y-4">
+                <div>
+                    <p class="text-[10px] font-bold text-indigo-600 uppercase">${d.campeonato}</p>
+                    <h4 class="text-xl font-black text-slate-800 uppercase">vs ${d.rival}</h4>
+                    <p class="text-xs text-slate-500 font-bold">📅 ${formatDate(d.fechaPartido)} • 🏟️ ${d.lugar}</p>
+                </div>
+
+                ${bloqueEstado}
+                ${bloqueIncidencias}
+
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">🕒 Cronología de Eventos ${puedeEditarDT ? '(Editable por el DT)' : ''}</p>
+                    <div class="bg-white border border-slate-200 rounded-xl px-3 py-2">${htmlEventos}</div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">👥 Plantel Convocado</p>
+                    ${titulares.length > 0 ? `<div class="mb-2"><p class="text-[10px] font-bold text-green-700 mb-1">Titulares:</p>${titulares.map(c => chipJug(c, 'bg-green-100 text-green-800')).join('')}</div>` : ''}
+                    ${banca.length > 0 ? `<div><p class="text-[10px] font-bold text-slate-500 mb-1">Banca / Convocados:</p>${banca.map(c => chipJug(c, 'bg-slate-100 text-slate-700')).join('')}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function cambiarJugadorEvento(idx, nuevoDni) {
+        const jug = (detalleActual.convocados || []).find(c => c.dni == nuevoDni);
+        if (eventosEditables[idx] && jug) {
+            eventosEditables[idx].dni = jug.dni;
+            eventosEditables[idx].jugador = jug.nombre;
+            eventosEditables[idx].camiseta = jug.camiseta;
+        }
+    }
+
+    function eliminarEventoDT(idx) {
+        const ev = eventosEditables[idx];
+        eventosEditables.splice(idx, 1);
+        if (ev && ev.tipo === 'Gol') {
+            detalleActual.golesPropio = Math.max(0, (Number(detalleActual.golesPropio) || 0) - 1);
+        }
+        renderDetalleEncuentro();
+    }
+
+    function agregarEventoDT() {
+        const min = document.getElementById("nuevoEvMin").value.trim() || "1T 1'";
+        const tipo = document.getElementById("nuevoEvTipo").value;
+        const dni = document.getElementById("nuevoEvDni").value;
+        const jug = (detalleActual.convocados || []).find(c => c.dni == dni);
+        if (!jug) return;
+
+        eventosEditables.push({
+            minuto: min,
+            tipo: tipo,
+            dni: jug.dni,
+            jugador: jug.nombre,
+            camiseta: jug.camiseta
+        });
+        if (tipo === 'Gol') {
+            detalleActual.golesPropio = (Number(detalleActual.golesPropio) || 0) + 1;
+        }
+        renderDetalleEncuentro();
     }
 
     function cerrarDetalleEncuentro() {
@@ -1148,6 +1233,11 @@
             formData.append("golesPropio", gp);
             formData.append("golesRival", gr);
             formData.append("incidencias", inc);
+            formData.append("eventos", JSON.stringify(eventosEditables.map(e => ({
+                minuto: e.minuto,
+                tipo: e.tipo,
+                dni: e.dni
+            }))));
 
             const res = await fetch(URL_BACKEND, { method: "POST", body: formData });
             const data = JSON.parse(await res.text());
@@ -1637,250 +1727,4 @@
                 </button>
                 <button onclick="abrirModuloCoordinador('moduloJugadores')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">🏃‍♂️</span><span class="text-xs font-bold text-slate-700">Jugadores</span></button>
                 <button onclick="abrirModuloCoordinador('moduloEncuentros')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">⚽</span><span class="text-xs font-bold text-slate-700">Encuentros</span></button>
-                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">📋</span><span class="text-xs font-bold text-slate-700">Asistencia</span></button>
-                <button onclick="abrirModuloCoordinador('moduloDT')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">⚙️</span><span class="text-xs font-bold text-slate-700">Cambiar DT</span></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ======================================================= -->
-    <!-- PANEL PROFESOR / DT -->
-    <!-- ======================================================= -->
-    <div id="profesorMainView" class="hidden">
-        <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
-            <h2 class="text-2xl font-black tracking-tight">Comando Técnico</h2>
-            <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Panel de Entrenador</p>
-        </div>
-        <div class="px-4 mb-4"><h3 class="font-bold text-slate-800 text-lg">Mis Equipos a Cargo</h3></div>
-        <div id="contenedorEquiposProfesor" class="px-4"></div>
-    </div>
-
-    <div id="dashboardProfesorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
-        <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">
-                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver
-            </button>
-            <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
-            <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
-        </div>
-        <div class="p-4 mt-2">
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="abrirModuloProfe('profeCampeonatosView')" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl p-5 flex items-center justify-between shadow-md active:scale-[0.98] transition">
-                    <div class="text-left"><span class="text-[10px] font-bold uppercase tracking-wider opacity-75">Gestionar Torneos</span><h3 class="text-xl font-black">Campeonatos</h3></div>
-                    <span class="text-4xl">🏆</span>
-                </button>
-                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
-                </button>
-                <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">✅</span><span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span>
-                </button>
-                <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">⚽</span><span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span>
-                </button>
-                <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
-                    <span class="text-4xl mb-3">📊</span><span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ======================================================= -->
-    <!-- MÓDULOS DE VISTAS -->
-    <!-- ======================================================= -->
-
-    <!-- Coord: Jugadores -->
-    <div id="moduloJugadores" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏃‍♂️</span> Jugadores Oficiales</h2>
-            <button onclick="cerrarModuloCoordinador('moduloJugadores')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4"><div id="listaJugadoresModulo" class="grid grid-cols-2 gap-3"></div></div>
-    </div>
-
-    <!-- Coord: Cambiar / Registrar DT -->
-    <div id="moduloDT" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
-        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚙️</span> Cambiar Entrenador</h2>
-            <button onclick="cerrarModuloCoordinador('moduloDT')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-5 mt-4">
-            <div class="flex justify-between items-center mb-2">
-                <label class="block text-[11px] font-bold text-slate-500 uppercase">Nuevo Entrenador (DT)</label>
-                <button onclick="abrirModalNuevoDT()" class="bg-blue-100 text-blue-700 text-[10px] font-bold px-3 py-1 rounded-lg hover:bg-blue-200 transition shrink-0 shadow-sm border border-blue-200">+ Registrar DT</button>
-            </div>
-            <select id="selNuevoDT" class="w-full border-2 border-slate-300 p-3.5 rounded-xl mb-6 bg-slate-50 outline-none focus:border-blue-500 font-bold text-slate-700"></select>
-            <button id="btnGuardarDT" onclick="guardarNuevoDT()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition">💾 Guardar Cambios</button>
-        </div>
-    </div>
-
-    <!-- Coord: Dashboard Campeonato -->
-    <div id="moduloDashboardCampeonato" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Dashboard Campeonato</h2>
-            <button onclick="cerrarModuloCoordinador('moduloDashboardCampeonato')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4"><div id="contenidoDashboardCoord"></div></div>
-    </div>
-
-    <!-- Coord: Encuentros -->
-    <div id="moduloEncuentros" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Historial Encuentros</h2>
-            <button onclick="cerrarModuloCoordinador('moduloEncuentros')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4"><div id="listaEncuentrosModulo"></div></div>
-    </div>
-
-    <!-- Coord: Asistencia -->
-    <div id="moduloAsistencia" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📋</span> Asistencia</h2>
-            <button onclick="cerrarModuloCoordinador('moduloAsistencia')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4"><div id="listaAsistenciaModulo" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"></div></div>
-    </div>
-
-    <!-- DT: CAMPEONATOS -->
-    <div id="profeCampeonatosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Campeonatos</h2>
-            <button onclick="cerrarModuloProfe('profeCampeonatosView')" class="text-indigo-200 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4">
-            <button onclick="abrirModalInscribirCampeonato()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 transition mb-4 flex justify-center items-center gap-2">
-                <span class="text-xl">+</span> Inscribir / Crear Campeonato
-            </button>
-            <p class="text-[11px] text-slate-500 text-center mb-3">Toca un campeonato para actualizar reglas o el puesto alcanzado.</p>
-            <div id="listaCampeonatosProfe"></div>
-        </div>
-    </div>
-
-    <!-- DT: SELECCIONADOS -->
-    <div id="profeRosterView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">👥</span> Seleccionados</h2>
-            <button onclick="cerrarModuloProfe('profeRosterView')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4">
-            <div class="grid grid-cols-2 gap-2 mb-4">
-                <button onclick="abrirModalNuevoJugador()" class="bg-blue-600 text-white text-xs font-bold py-3 px-3 rounded-xl shadow hover:bg-blue-700 transition flex items-center justify-center gap-1">
-                    <span>➕</span> Nuevo Jugador
-                </button>
-                <button onclick="abrirModalAgregarExistente()" class="bg-white text-blue-700 border border-blue-200 text-xs font-bold py-3 px-3 rounded-xl shadow-sm hover:bg-blue-50 transition flex items-center justify-center gap-1">
-                    <span>📥</span> Traer de la Base
-                </button>
-            </div>
-            <p class="text-[11px] text-slate-500 font-medium mb-3 text-center">Toca la ficha de un jugador para editar su foto o camiseta.</p>
-            <div id="gridSeleccionadosProfe" class="grid grid-cols-2 gap-3 pb-10"></div>
-        </div>
-    </div>
-
-    <!-- DT: TOMAR ASISTENCIA -->
-    <div id="profeAsistenciaView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-amber-500 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">✅</span> Tomar Asistencia</h2>
-            <button onclick="cerrarModuloProfe('profeAsistenciaView')" class="text-amber-100 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4">
-            <label class="block text-[11px] font-bold text-amber-700 uppercase mb-2">Fecha del Entrenamiento</label>
-            <input type="date" id="fechaAsistencia" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 bg-white outline-none focus:border-amber-500 font-bold text-slate-700 shadow-sm">
-            <div id="listaAsistenciaTomar" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6 max-h-[50vh] overflow-y-auto"></div>
-            <button id="btnGuardarAsist" onclick="guardarAsistenciaBD()" class="w-full bg-amber-500 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-amber-600 transition">💾 Guardar Asistencia de Hoy</button>
-        </div>
-    </div>
-
-    <!-- DT: ENCUENTROS -->
-    <div id="profeEncuentrosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-green-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Encuentros</h2>
-            <button onclick="cerrarModuloProfe('profeEncuentrosView')" class="text-green-200 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4">
-            <button onclick="iniciarProgramacionPartido()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 transition mb-6 flex justify-center items-center">
-                <span class="text-xl mr-2">+</span> Programar Nuevo Partido
-            </button>
-            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Historial de Partidos (Toca para ver detalle)</p>
-            <div id="listaEncuentrosProfe"></div>
-        </div>
-    </div>
-
-    <!-- DT: ESTADÍSTICAS Y RENDIMIENTO -->
-    <div id="profeEstadisticasView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
-        <div class="bg-purple-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📊</span> Rendimiento</h2>
-            <button onclick="cerrarModuloProfe('profeEstadisticasView')" class="text-purple-200 font-bold hover:text-white">✕ Cerrar</button>
-        </div>
-        <div class="p-4 space-y-6 pb-12">
-            <div id="contenidoDashboardProfe"></div>
-            <div>
-                <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Asistencia a Entrenamientos</h4>
-                <div id="listaEstadisticasProfe" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- DT: PROGRAMAR PARTIDO -->
-    <div id="programarPartidoView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-30">
-        <div class="bg-slate-800 text-white p-4 flex justify-between items-center mb-4 shadow-md sticky top-0">
-            <h2 class="font-bold text-lg">Nuevo Partido</h2>
-            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden');" class="text-slate-300 font-bold hover:text-white flex items-center">✕ <span class="ml-1 text-sm">Cancelar</span></button>
-        </div>
-        <div id="loaderProgramar" class="text-center p-6 text-slate-500 animate-pulse">Cargando datos...</div>
-        <div id="formProgramacion" class="hidden px-4 max-w-md mx-auto pb-10">
-            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Campeonato</label>
-            <select id="selCampeonato" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 bg-white text-sm focus:border-green-500 outline-none"></select>
-            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Rival</label>
-            <input type="text" id="txtRival" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 text-sm focus:border-green-500 outline-none">
-            <div class="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Día y Hora</label>
-                    <input type="datetime-local" id="txtFecha" onchange="calcularConvocatoria()" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-xs focus:border-green-500 outline-none">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Citación</label>
-                    <input type="datetime-local" id="txtFechaConvocatoria" class="w-full border-2 border-amber-200 bg-amber-50 p-2.5 rounded-xl text-xs focus:border-green-500 outline-none">
-                </div>
-            </div>
-            <div class="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Lugar</label>
-                    <input type="text" id="txtLugar" class="w-full border-2 border-slate-200 p-3 rounded-xl text-sm focus:border-green-500 outline-none">
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Ref.</label>
-                    <input type="text" id="txtDireccion" class="w-full border-2 border-slate-200 p-3 rounded-xl text-sm focus:border-green-500 outline-none">
-                </div>
-            </div>
-            <div class="flex justify-between items-end mb-2 mt-4">
-                <label class="block text-[11px] font-bold text-slate-800 uppercase">Convocar Jugadores</label>
-                <span class="text-[10px] bg-green-100 text-green-800 px-2 py-1 rounded-lg font-bold"><span id="contadorConvocados">0</span> Sel.</span>
-            </div>
-            <div id="listaJugadoresConvocar" class="grid grid-cols-1 max-h-56 overflow-y-auto bg-white p-2 rounded-xl mb-6 border border-slate-200 shadow-inner"></div>
-            <button id="btnGuardarEncuentro" onclick="guardarEncuentro()" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition">💾 Programar y Generar Link</button>
-        </div>
-
-        <div id="pantallaExito" class="hidden px-4 py-2 max-w-md mx-auto">
-            <div class="text-center mb-5 mt-4">
-                <div class="inline-flex bg-green-100 p-3 rounded-full mb-3"><svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>
-                <h3 class="font-black text-xl text-slate-800 tracking-tight">Encuentro Registrado</h3>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-slate-200 mb-5 shadow-sm">
-                <h4 class="font-bold text-slate-800 text-sm mb-1">📢 Convocatoria General</h4>
-                <div id="btnWhatsAppGrupo"></div>
-            </div>
-            <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-6 shadow-sm">
-                <h4 class="font-bold text-blue-900 text-sm mb-1">🔐 Link de Control (Privado)</h4>
-                <div class="flex mt-2">
-                    <input type="text" id="linkGenerado" readonly class="w-full border border-blue-300 p-2 rounded-l-xl text-[10px] outline-none bg-white text-blue-900 font-mono">
-                    <button onclick="copiarLink()" class="bg-blue-600 text-white px-4 rounded-r-xl font-bold text-xs hover:bg-blue-700 transition">Copiar</button>
-                </div>
-            </div>
-            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden'); cargarModuloEncuentros('listaEncuentrosProfe');" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md">Finalizar y Volver</button>
-        </div>
-    </div>
-
-</div>
-
-</body>
-</html>
+                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border border-slate-200 rounded-2xl p-4
