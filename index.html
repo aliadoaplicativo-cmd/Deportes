@@ -27,6 +27,7 @@
     let modoCampeonato = "existente";
     let base64FotoNuevo = "";
     let base64FotoEditar = "";
+    let contenedorEncuentrosActual = "listaEncuentrosProfe";
 
     // ==========================================
     // ALERTAS MODERNAS
@@ -137,6 +138,7 @@
         if (moduloID === 'moduloDT') cargarModuloDT();
         if (moduloID === 'moduloEncuentros') cargarModuloEncuentros('listaEncuentrosModulo');
         if (moduloID === 'moduloAsistencia') cargarModuloAsistencia('listaAsistenciaModulo');
+        if (moduloID === 'moduloDashboardCampeonato') cargarDashboardEquipo('contenidoDashboardCoord');
     }
 
     function cerrarModuloCoordinador(moduloID) {
@@ -144,7 +146,6 @@
         document.getElementById("dashboardCoordinadorView").classList.remove("hidden");
     }
 
-    // --- Modal Crear Selección Combinada ---
     function abrirModalCrearSeleccion() {
         document.getElementById("nsNombre").value = "";
         document.querySelectorAll('.check-categoria').forEach(chk => chk.checked = false);
@@ -191,7 +192,6 @@
         }
     }
 
-    // --- Modal Registrar Nuevo DT ---
     function abrirModalNuevoDT() {
         ['ndtDni', 'ndtNombres', 'ndtApellidos', 'ndtTelefono'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('modalNuevoDT').classList.replace('hidden', 'flex');
@@ -371,7 +371,10 @@
         if (moduloID === 'profeRosterView') cargarRosterProfe();
         if (moduloID === 'profeAsistenciaView') cargarListaAsistencia();
         if (moduloID === 'profeEncuentrosView') cargarModuloEncuentros('listaEncuentrosProfe');
-        if (moduloID === 'profeEstadisticasView') cargarModuloAsistencia('listaEstadisticasProfe');
+        if (moduloID === 'profeEstadisticasView') {
+            cargarDashboardEquipo('contenidoDashboardProfe');
+            cargarModuloAsistencia('listaEstadisticasProfe');
+        }
         if (moduloID === 'profeCampeonatosView') cargarCampeonatosProfe();
     }
 
@@ -381,7 +384,108 @@
     }
 
     // ==========================================
-    // 3. CAMPEONATOS (DT)
+    // 3. DASHBOARD DE CAMPEONATO Y JUGADORES
+    // ==========================================
+    async function cargarDashboardEquipo(contenedorID) {
+        const cont = document.getElementById(contenedorID);
+        cont.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-8 text-xs'>Calculando métricas oficiales...</p>";
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerDashboardEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            const r = data.resumen;
+            const difGoles = r.gf - r.gc;
+            const difTxt = difGoles > 0 ? `+${difGoles}` : `${difGoles}`;
+
+            let avisoPend = "";
+            if (r.pendientes > 0) {
+                avisoPend = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4 text-xs font-bold flex items-center gap-2">
+                    <span>⏳</span> Hay ${r.pendientes} partido(s) pendiente(s) de aprobación del DT.
+                </div>`;
+            }
+
+            let htmlJug = "";
+            if (!data.jugadores || data.jugadores.length === 0) {
+                htmlJug = "<p class='text-center text-slate-400 text-xs py-6'>Sin jugadores registrados aún.</p>";
+            } else {
+                htmlJug = `
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200">
+                                <th class="p-2.5 font-bold">Jugador</th>
+                                <th class="p-2 text-center font-bold">PJ</th>
+                                <th class="p-2 text-center font-bold">⚽</th>
+                                <th class="p-2 text-center font-bold">👟</th>
+                                <th class="p-2 text-center font-bold">🟨</th>
+                                <th class="p-2 text-center font-bold">🟥</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.jugadores.map(j => `
+                                <tr class="border-b border-slate-100 text-xs">
+                                    <td class="p-2.5 flex items-center gap-2">
+                                        <img src="${j.fotoUrl}" class="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0">
+                                        <span class="font-bold text-slate-800 truncate max-w-[110px]">${j.nombre}</span>
+                                    </td>
+                                    <td class="p-2 text-center font-bold text-slate-600">${j.pj}</td>
+                                    <td class="p-2 text-center font-black text-green-600">${j.goles}</td>
+                                    <td class="p-2 text-center font-bold text-blue-600">${j.asistencias}</td>
+                                    <td class="p-2 text-center font-bold text-amber-500">${j.amarillas}</td>
+                                    <td class="p-2 text-center font-bold text-red-500">${j.rojas}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </div>`;
+            }
+
+            cont.innerHTML = `
+                ${avisoPend}
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200">
+                        <p class="text-3xl font-black text-slate-800">${r.pj}</p>
+                        <p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Partidos Jugados</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500">
+                        <p class="text-3xl font-black text-green-600">${r.pg}</p>
+                        <p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400">
+                        <p class="text-3xl font-black text-amber-500">${r.pe}</p>
+                        <p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500">
+                        <p class="text-3xl font-black text-red-500">${r.pp}</p>
+                        <p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mb-5">
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center">
+                        <p class="text-xl font-black text-slate-800">${r.gf}</p>
+                        <p class="text-[9px] font-bold uppercase text-slate-400">Goles a Favor</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center">
+                        <p class="text-xl font-black text-slate-800">${r.gc}</p>
+                        <p class="text-[9px] font-bold uppercase text-slate-400">En Contra</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center">
+                        <p class="text-xl font-black text-blue-600">${difTxt}</p>
+                        <p class="text-[9px] font-bold uppercase text-slate-400">Diferencia</p>
+                    </div>
+                </div>
+                <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Estadísticas por Jugador</h4>
+                ${htmlJug}
+            `;
+        } catch (e) {
+            cont.innerHTML = `<p class='text-center text-red-500 text-xs my-6'>Error al cargar métricas: ${e.message}</p>`;
+        }
+    }
+
+    // ==========================================
+    // 4. CAMPEONATOS (DT)
     // ==========================================
     async function cargarCampeonatosProfe() {
         const cont = document.getElementById("listaCampeonatosProfe");
@@ -575,7 +679,7 @@
     }
 
     // ==========================================
-    // 4. SELECCIONADOS (FICHAS, EDICIÓN Y BAJA)
+    // 5. SELECCIONADOS (FICHAS, EDICIÓN Y BAJA)
     // ==========================================
     async function cargarRosterProfe() {
         const grid = document.getElementById("gridSeleccionadosProfe");
@@ -857,11 +961,13 @@
     }
 
     // ==========================================
-    // 5. ASISTENCIA, ENCUENTROS Y ESTADÍSTICAS
+    // 6. ENCUENTROS, DETALLE Y APROBACIÓN DEL DT
     // ==========================================
     async function cargarModuloEncuentros(contenedorID) {
+        contenedorEncuentrosActual = contenedorID;
         const contenedor = document.getElementById(contenedorID);
         contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Cargando partidos...</p>";
+
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerEncuentrosEquipoCoordinador&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
@@ -873,18 +979,31 @@
                 const d = new Date(dateStr);
                 return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             };
+
             let html = "";
             data.encuentros.forEach(e => {
-                const badgeEstado = e.estado === 'Activo'
-                    ? '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>'
-                    : '<span class="bg-slate-200 text-slate-600 px-2 py-1 rounded text-[10px] font-bold">CERRADO</span>';
+                let badgeEstado = '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>';
+                let marcadorHtml = "";
+
+                if (e.estado === 'Pendiente Aprobación') {
+                    badgeEstado = '<span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold animate-pulse">⏳ PENDIENTE APROBACIÓN</span>';
+                    marcadorHtml = `<div class="mt-2 inline-block bg-amber-50 border border-amber-200 text-amber-900 font-black text-xs px-2.5 py-1 rounded-lg">Marcador reportado: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
+                } else if (e.estado === 'Cerrado/Aprobado') {
+                    badgeEstado = '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">✅ APROBADO</span>';
+                    marcadorHtml = `<div class="mt-2 inline-block bg-slate-800 text-white font-black text-xs px-3 py-1 rounded-lg">Final: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
+                }
+
                 html += `
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3">
-                    <div class="absolute top-4 right-4">${badgeEstado}</div>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">vs Rival</p>
-                    <h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-3 pr-16">${e.rival}</h3>
+                <div onclick="abrirDetalleEncuentro('${e.idEncuentro}')" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition">
+                    <div class="flex justify-between items-start gap-2 mb-1">
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">vs Rival</p>
+                        ${badgeEstado}
+                    </div>
+                    <h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-2">${e.rival}</h3>
                     <div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div>
                     <div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div>
+                    ${marcadorHtml}
+                    <p class="text-[10px] text-blue-600 font-bold mt-2 text-right">Tocar para ver detalle →</p>
                 </div>`;
             });
             contenedor.innerHTML = html;
@@ -893,14 +1012,168 @@
         }
     }
 
+    async function abrirDetalleEncuentro(idEncuentro) {
+        const modal = document.getElementById("modalDetalleEncuentro");
+        const body = document.getElementById("bodyDetalleEncuentro");
+        body.innerHTML = "<p class='text-center text-slate-500 py-10 animate-pulse text-xs'>Cargando detalle del partido...</p>";
+        modal.classList.replace("hidden", "flex");
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerDetalleEncuentro&idEncuentro=${encodeURIComponent(idEncuentro)}`);
+            const d = await res.json();
+            if (d.error) throw new Error(d.error);
+
+            const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const esDT = estadoGlobal.rol === 'Profesor';
+
+            // Bloque superior según estado
+            let bloqueEstado = "";
+            if (d.estado === 'Activo') {
+                const linkMesa = `${URL_GITHUB}?token=${d.token}`;
+                bloqueEstado = `
+                <div class="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                    <p class="text-xs font-black text-green-800 mb-1">🟢 Partido Activo (En espera de registro)</p>
+                    ${esDT ? `
+                    <div class="flex mt-2">
+                        <input type="text" id="detLinkMesa" value="${linkMesa}" readonly class="w-full border border-green-300 p-1.5 rounded-l-lg text-[10px] bg-white font-mono">
+                        <button onclick="copiarTextoInput('detLinkMesa')" class="bg-green-600 text-white px-3 rounded-r-lg text-[10px] font-bold">Copiar Link</button>
+                    </div>` : ''}
+                </div>`;
+            } else if (d.estado === 'Pendiente Aprobación') {
+                bloqueEstado = `
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                    <p class="text-xs font-black text-amber-800">⏳ Pendiente de Aprobación del DT</p>
+                    <p class="text-[11px] text-amber-900">Registrado por: <b>${d.padreRegistrador || 'No indicado'}</b></p>
+                    ${esDT ? `
+                    <div class="grid grid-cols-2 gap-2 pt-2">
+                        <div>
+                            <label class="block text-[9px] font-bold text-amber-800 uppercase">Nuestros Goles</label>
+                            <input type="number" id="aprGolesPropio" value="${d.golesPropio}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-amber-800 uppercase">Goles Rival</label>
+                            <input type="number" id="aprGolesRival" value="${d.golesRival}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-bold text-amber-800 uppercase">Incidencias / Observaciones</label>
+                        <textarea id="aprIncidencias" rows="2" class="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white">${d.incidencias || ''}</textarea>
+                    </div>
+                    <button id="btnAprobarPartido" onclick="aprobarEncuentro('${d.idEncuentro}')" class="w-full bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-xl text-xs shadow transition">✅ Aprobar Partido Oficialmente</button>
+                    ` : `<p class="text-lg font-black text-slate-800 text-center">Marcador: ${d.golesPropio} - ${d.golesRival}</p>`}
+                </div>`;
+            } else {
+                bloqueEstado = `
+                <div class="bg-slate-900 text-white rounded-xl p-4 text-center">
+                    <span class="text-[10px] font-bold uppercase text-blue-300">✅ Resultado Oficial Aprobado</span>
+                    <p class="text-3xl font-black mt-1">${d.golesPropio} - ${d.golesRival}</p>
+                    ${d.padreRegistrador ? `<p class="text-[10px] text-slate-400 mt-1">Mesa de Control: ${d.padreRegistrador}</p>` : ''}
+                </div>`;
+            }
+
+            // Incidencias (cuando ya está aprobado)
+            const bloqueIncidencias = (d.estado === 'Cerrado/Aprobado' && d.incidencias)
+                ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Incidencias</p><p class="text-slate-700">${d.incidencias}</p></div>`
+                : '';
+
+            // Cronología de eventos
+            const iconos = { "Gol": "⚽", "Asistencia": "👟", "Amarilla": "🟨", "Roja": "🟥", "Sale": "⬇️", "Entra": "⬆️" };
+            const htmlEventos = d.eventos && d.eventos.length > 0
+                ? d.eventos.map(ev => `
+                    <div class="flex items-center gap-2 text-xs py-1.5 border-b border-slate-100">
+                        <span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-2 py-0.5 rounded">${ev.minuto}</span>
+                        <span>${iconos[ev.tipo] || '•'}</span>
+                        <span class="font-bold text-slate-800">${ev.tipo}</span>
+                        <span class="text-slate-500">— #${ev.camiseta} ${ev.jugador}</span>
+                    </div>`).join("")
+                : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
+
+            // Convocados (Titulares y Banca)
+            const titulares = (d.convocados || []).filter(c => c.rol === 'Titular');
+            const banca = (d.convocados || []).filter(c => c.rol !== 'Titular');
+            const chipJug = (c, color) => `<span class="inline-block ${color} text-[10px] font-bold px-2 py-1 rounded-lg mr-1 mb-1">#${c.camiseta} ${c.nombre}</span>`;
+
+            body.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-[10px] font-bold text-indigo-600 uppercase">${d.campeonato}</p>
+                        <h4 class="text-xl font-black text-slate-800 uppercase">vs ${d.rival}</h4>
+                        <p class="text-xs text-slate-500 font-bold">📅 ${formatDate(d.fechaPartido)} • 🏟️ ${d.lugar}</p>
+                    </div>
+
+                    ${bloqueEstado}
+                    ${bloqueIncidencias}
+
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">🕒 Cronología de Eventos</p>
+                        <div class="bg-white border border-slate-200 rounded-xl px-3 py-1">${htmlEventos}</div>
+                    </div>
+
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">👥 Plantel Convocado</p>
+                        ${titulares.length > 0 ? `<div class="mb-2"><p class="text-[10px] font-bold text-green-700 mb-1">Titulares:</p>${titulares.map(c => chipJug(c, 'bg-green-100 text-green-800')).join('')}</div>` : ''}
+                        ${banca.length > 0 ? `<div><p class="text-[10px] font-bold text-slate-500 mb-1">Banca / Convocados:</p>${banca.map(c => chipJug(c, 'bg-slate-100 text-slate-700')).join('')}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            body.innerHTML = `<p class='text-center text-red-500 text-xs py-8'>Error: ${e.message}</p>`;
+        }
+    }
+
+    function cerrarDetalleEncuentro() {
+        document.getElementById("modalDetalleEncuentro").classList.replace("flex", "hidden");
+    }
+
+    function copiarTextoInput(idInput) {
+        const inp = document.getElementById(idInput);
+        inp.select();
+        document.execCommand("copy");
+        mostrarAlerta("Enlace copiado al portapapeles.");
+    }
+
+    async function aprobarEncuentro(idEncuentro) {
+        const gp = document.getElementById("aprGolesPropio").value;
+        const gr = document.getElementById("aprGolesRival").value;
+        const inc = document.getElementById("aprIncidencias").value.trim();
+
+        const btn = document.getElementById("btnAprobarPartido");
+        btn.innerText = "Aprobando...";
+        btn.disabled = true;
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append("action", "aprobarEncuentroDT");
+            formData.append("idEncuentro", idEncuentro);
+            formData.append("golesPropio", gp);
+            formData.append("golesRival", gr);
+            formData.append("incidencias", inc);
+
+            const res = await fetch(URL_BACKEND, { method: "POST", body: formData });
+            const data = JSON.parse(await res.text());
+            if (!data.exito) throw new Error(data.error || "Error al aprobar.");
+
+            mostrarAlerta(data.mensaje);
+            cerrarDetalleEncuentro();
+            cargarModuloEncuentros(contenedorEncuentrosActual);
+        } catch (e) {
+            mostrarAlerta(e.message);
+            btn.innerText = "✅ Aprobar Partido Oficialmente";
+            btn.disabled = false;
+        }
+    }
+
+    // ==========================================
+    // 7. ASISTENCIA Y PROGRAMACIÓN DE PARTIDOS
+    // ==========================================
     async function cargarModuloAsistencia(contenedorID) {
         const contenedor = document.getElementById(contenedorID);
-        contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Calculando estadísticas...</p>";
+        contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Calculando asistencia...</p>";
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerAsistenciaEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
             if (!data.asistencias || data.asistencias.length === 0) {
-                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Sin datos de asistencia.</p>";
+                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Sin datos de asistencia.</p>";
                 return;
             }
             let html = `<table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200"><th class="p-3 font-bold">Jugador</th><th class="p-3 font-bold text-center w-16">Clases</th><th class="p-3 font-bold text-center w-20">% Asist.</th></tr></thead><tbody>`;
@@ -1123,6 +1396,17 @@
     </div>
 </div>
 
+<!-- Modal Detalle y Aprobación de Encuentro -->
+<div id="modalDetalleEncuentro" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-5 shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
+            <h3 class="text-base font-black text-slate-800">⚽ Detalle del Encuentro</h3>
+            <button onclick="cerrarDetalleEncuentro()" class="text-slate-400 bg-slate-100 p-1.5 rounded-full text-xs">✕</button>
+        </div>
+        <div id="bodyDetalleEncuentro" class="overflow-y-auto pr-1 flex-1"></div>
+    </div>
+</div>
+
 <!-- Modal Inscribir / Crear Campeonato (DT) -->
 <div id="modalInscribirCampeonato" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
@@ -1130,30 +1414,20 @@
             <h3 class="text-xl font-black"><span class="mr-2">🏆</span> Campeonato</h3>
             <button onclick="cerrarModalInscribirCampeonato()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
         </div>
-
         <div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-4">
             <button id="tabCampExistente" onclick="cambiarTabCampeonato('existente')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow">Existente</button>
             <button id="tabCampNuevo" onclick="cambiarTabCampeonato('nuevo')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600">Crear Nuevo</button>
         </div>
-
         <div class="overflow-y-auto pr-1 space-y-3">
             <div id="bloqueCampExistente">
                 <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Campeonatos del Colegio</label>
                 <select id="campExistenteSel" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select>
                 <p class="text-[10px] text-slate-400 mt-1">Si ya fue creado por otro DT, selecciónelo aquí para evitar duplicados.</p>
             </div>
-
             <div id="bloqueCampNuevo" class="hidden space-y-3">
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nombre del Campeonato</label>
-                    <input type="text" id="campNombreNuevo" placeholder="Ej. ADECOA 2026" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold">
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label>
-                    <input type="date" id="campFechaInicio" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white">
-                </div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nombre del Campeonato</label><input type="text" id="campNombreNuevo" placeholder="Ej. ADECOA 2026" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label><input type="date" id="campFechaInicio" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></div>
             </div>
-
             <div class="pt-2 border-t border-slate-100">
                 <p class="text-[10px] font-black text-indigo-600 uppercase tracking-wider mb-2">Reglas para esta Selección</p>
                 <div class="grid grid-cols-3 gap-2">
@@ -1162,13 +1436,8 @@
                     <div><label class="block text-[10px] font-bold text-slate-500 uppercase">N° Equipos</label><input type="number" id="campEquipos" placeholder="8" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
                 </div>
             </div>
-
-            <div>
-                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Puesto Alcanzado</label>
-                <input type="text" id="campPuesto" value="En curso" placeholder="Ej. En curso, 1er Puesto, Semifinal" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold">
-            </div>
+            <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Puesto Alcanzado</label><input type="text" id="campPuesto" value="En curso" placeholder="Ej. En curso, 1er Puesto" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
         </div>
-
         <button id="btnGuardarCampeonato" onclick="guardarInscripcionCampeonato()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-indigo-700 transition shadow-lg">💾 Guardar Campeonato</button>
     </div>
 </div>
@@ -1187,10 +1456,7 @@
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Jug/Cancha</label><input type="number" id="ecJugadores" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">N° Equipos</label><input type="number" id="ecEquipos" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
             </div>
-            <div>
-                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Puesto Alcanzado</label>
-                <input type="text" id="ecPuesto" placeholder="Ej. Campeón, 2do Puesto, En curso" class="w-full border-2 border-indigo-200 bg-indigo-50 p-2.5 rounded-xl text-sm font-black text-indigo-900">
-            </div>
+            <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Puesto Alcanzado</label><input type="text" id="ecPuesto" placeholder="Ej. Campeón, 2do Puesto, En curso" class="w-full border-2 border-indigo-200 bg-indigo-50 p-2.5 rounded-xl text-sm font-black text-indigo-900"></div>
         </div>
         <button id="btnGuardarEdicionCamp" onclick="guardarEdicionCampeonato()" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl mt-5 hover:bg-indigo-700 transition shadow">💾 Actualizar Datos</button>
     </div>
@@ -1291,11 +1557,8 @@
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ejNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ejApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
             </div>
-
             <button id="btnGuardarEdicion" onclick="guardarEdicionJugador()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-2 hover:bg-blue-700 transition shadow">💾 Guardar Cambios</button>
-
             <button onclick="document.getElementById('bloqueMotivoBaja').classList.toggle('hidden')" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl hover:bg-red-100 transition text-xs">🗑️ Quitar de esta Selección</button>
-
             <div id="bloqueMotivoBaja" class="hidden p-3 bg-red-50 border border-red-200 rounded-xl space-y-2">
                 <label class="block text-[10px] font-bold text-red-700 uppercase">Motivo de salida</label>
                 <select id="ejMotivoBaja" class="w-full border border-red-200 p-2 rounded-lg text-xs font-bold bg-white">
@@ -1454,19 +1717,10 @@
     <!-- Coord: Dashboard Campeonato -->
     <div id="moduloDashboardCampeonato" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
-            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Campeonato Oficial</h2>
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Dashboard Campeonato</h2>
             <button onclick="cerrarModuloCoordinador('moduloDashboardCampeonato')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
-        <div class="p-4">
-            <h3 class="font-black text-slate-800 text-lg mb-3">Rendimiento del Equipo</h3>
-            <div class="grid grid-cols-2 gap-3 mb-6">
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200"><p class="text-4xl font-black text-slate-800">0</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1 tracking-wider">Partidos Jugados</p></div>
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-4xl font-black text-green-600">0</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1 tracking-wider">Ganados</p></div>
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-4xl font-black text-amber-500">0</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1 tracking-wider">Empatados</p></div>
-                <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-4xl font-black text-red-500">0</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1 tracking-wider">Perdidos</p></div>
-            </div>
-            <p class="text-xs text-slate-500 text-center font-bold mt-6">Siguiente paso: conectar métricas de partidos y goles.</p>
-        </div>
+        <div class="p-4"><div id="contenidoDashboardCoord"></div></div>
     </div>
 
     <!-- Coord: Encuentros -->
@@ -1546,20 +1800,23 @@
             <button onclick="iniciarProgramacionPartido()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 transition mb-6 flex justify-center items-center">
                 <span class="text-xl mr-2">+</span> Programar Nuevo Partido
             </button>
-            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Historial de Partidos</p>
+            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Historial de Partidos (Toca para ver detalle)</p>
             <div id="listaEncuentrosProfe"></div>
         </div>
     </div>
 
-    <!-- DT: ESTADÍSTICAS -->
+    <!-- DT: ESTADÍSTICAS Y RENDIMIENTO -->
     <div id="profeEstadisticasView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-purple-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📊</span> Rendimiento</h2>
             <button onclick="cerrarModuloProfe('profeEstadisticasView')" class="text-purple-200 font-bold hover:text-white">✕ Cerrar</button>
         </div>
-        <div class="p-4">
-            <p class="text-[10px] text-slate-500 mb-3 font-bold uppercase tracking-wider text-center">Resumen de Asistencia a Entrenamientos</p>
-            <div id="listaEstadisticasProfe" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6"></div>
+        <div class="p-4 space-y-6 pb-12">
+            <div id="contenidoDashboardProfe"></div>
+            <div>
+                <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Asistencia a Entrenamientos</h4>
+                <div id="listaEstadisticasProfe" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"></div>
+            </div>
         </div>
     </div>
 
