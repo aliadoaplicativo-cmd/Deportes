@@ -23,6 +23,8 @@
     };
 
     let rosterActual = { seleccionados: [], disponibles: [] };
+    let campeonatosActual = { participaciones: [], disponibles: [] };
+    let modoCampeonato = "existente";
     let base64FotoNuevo = "";
     let base64FotoEditar = "";
 
@@ -361,7 +363,7 @@
 
     function abrirModuloProfe(moduloID) {
         document.getElementById("dashboardProfesorView").classList.add("hidden");
-        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView', 'profeEstadisticasView', 'programarPartidoView'].forEach(id => {
+        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView', 'profeEstadisticasView', 'profeCampeonatosView', 'programarPartidoView'].forEach(id => {
             document.getElementById(id).classList.add("hidden");
         });
         document.getElementById(moduloID).classList.remove("hidden");
@@ -370,6 +372,7 @@
         if (moduloID === 'profeAsistenciaView') cargarListaAsistencia();
         if (moduloID === 'profeEncuentrosView') cargarModuloEncuentros('listaEncuentrosProfe');
         if (moduloID === 'profeEstadisticasView') cargarModuloAsistencia('listaEstadisticasProfe');
+        if (moduloID === 'profeCampeonatosView') cargarCampeonatosProfe();
     }
 
     function cerrarModuloProfe(moduloID) {
@@ -378,7 +381,201 @@
     }
 
     // ==========================================
-    // 3. SELECCIONADOS (FICHAS, EDICIÓN Y BAJA CON MOTIVO)
+    // 3. CAMPEONATOS (DT)
+    // ==========================================
+    async function cargarCampeonatosProfe() {
+        const cont = document.getElementById("listaCampeonatosProfe");
+        cont.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando campeonatos...</p>";
+
+        try {
+            const res = await fetch(`${URL_BACKEND}?action=obtenerCampeonatosEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
+            const data = await res.json();
+            campeonatosActual = {
+                participaciones: data.participaciones || [],
+                disponibles: data.disponibles || []
+            };
+
+            if (campeonatosActual.participaciones.length === 0) {
+                cont.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Esta selección aún no está inscrita en ningún campeonato.</p>";
+                return;
+            }
+
+            let html = "";
+            campeonatosActual.participaciones.forEach(p => {
+                html += `
+                <div onclick="abrirModalEditarCampeonato('${p.idParticipacion}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="font-black text-lg text-slate-800 leading-tight">${p.nombreCampeonato}</h3>
+                            <p class="text-[11px] text-slate-400 font-bold">📅 Inicio: ${p.fechaInicio || 'Por definir'}</p>
+                        </div>
+                        <span class="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase">${p.puestoAlcanzado || 'En curso'}</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 text-center">
+                        <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.minutosTiempo || '-'} min</p><p class="text-[9px] text-slate-400 font-bold uppercase">x Tiempo</p></div>
+                        <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.jugadoresCancha || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Jug/Cancha</p></div>
+                        <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.equiposParticipantes || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Equipos</p></div>
+                    </div>
+                </div>`;
+            });
+            cont.innerHTML = html;
+        } catch (e) {
+            cont.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>";
+        }
+    }
+
+    function cambiarTabCampeonato(modo) {
+        modoCampeonato = modo;
+        const tabExist = document.getElementById('tabCampExistente');
+        const tabNuevo = document.getElementById('tabCampNuevo');
+        const blkExist = document.getElementById('bloqueCampExistente');
+        const blkNuevo = document.getElementById('bloqueCampNuevo');
+
+        if (modo === 'existente') {
+            tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow";
+            tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
+            blkExist.classList.remove('hidden');
+            blkNuevo.classList.add('hidden');
+        } else {
+            tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow";
+            tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
+            blkNuevo.classList.remove('hidden');
+            blkExist.classList.add('hidden');
+        }
+    }
+
+    function abrirModalInscribirCampeonato() {
+        const sel = document.getElementById('campExistenteSel');
+        let html = "<option value=''>Seleccione un campeonato del colegio...</option>";
+        campeonatosActual.disponibles.forEach(c => {
+            html += `<option value="${c.idCampeonato}">${c.nombre} (${c.fechaInicio || 'S/F'})</option>`;
+        });
+        sel.innerHTML = html;
+
+        ['campNombreNuevo', 'campFechaInicio', 'campMinutos', 'campJugadores', 'campEquipos'].forEach(id => document.getElementById(id).value = "");
+        document.getElementById('campPuesto').value = "En curso";
+
+        if (campeonatosActual.disponibles.length > 0) cambiarTabCampeonato('existente');
+        else cambiarTabCampeonato('nuevo');
+
+        document.getElementById('modalInscribirCampeonato').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalInscribirCampeonato() {
+        document.getElementById('modalInscribirCampeonato').classList.replace('flex', 'hidden');
+    }
+
+    async function guardarInscripcionCampeonato() {
+        const idExistente = document.getElementById('campExistenteSel').value;
+        const nombreNuevo = document.getElementById('campNombreNuevo').value.trim();
+        const fechaInicio = document.getElementById('campFechaInicio').value;
+        const minutos = document.getElementById('campMinutos').value.trim();
+        const jugadores = document.getElementById('campJugadores').value.trim();
+        const equipos = document.getElementById('campEquipos').value.trim();
+        const puesto = document.getElementById('campPuesto').value.trim();
+
+        if (modoCampeonato === 'existente' && !idExistente) {
+            return mostrarAlerta("Seleccione un campeonato existente o cambie a la pestaña 'Crear Nuevo'.");
+        }
+        if (modoCampeonato === 'nuevo' && (!nombreNuevo || !fechaInicio)) {
+            return mostrarAlerta("Ingrese el nombre del campeonato y la fecha de inicio.");
+        }
+
+        const btn = document.getElementById('btnGuardarCampeonato');
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'inscribirEquipoCampeonato');
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('idColegio', estadoGlobal.idColegio);
+            formData.append('modo', modoCampeonato);
+            formData.append('idCampeonatoExistente', idExistente);
+            formData.append('nombreNuevo', nombreNuevo);
+            formData.append('fechaInicio', fechaInicio);
+            formData.append('minutosTiempo', minutos);
+            formData.append('jugadoresCancha', jugadores);
+            formData.append('equiposParticipantes', equipos);
+            formData.append('puestoAlcanzado', puesto || 'En curso');
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
+
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalInscribirCampeonato();
+                cargarCampeonatosProfe();
+            } else {
+                throw new Error(data.error || "Error al guardar campeonato.");
+            }
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "💾 Guardar Campeonato";
+            btn.disabled = false;
+        }
+    }
+
+    function abrirModalEditarCampeonato(idParticipacion) {
+        const p = campeonatosActual.participaciones.find(x => x.idParticipacion === idParticipacion);
+        if (!p) return;
+
+        document.getElementById('ecIdParticipacion').value = p.idParticipacion;
+        document.getElementById('ecTitulo').innerText = p.nombreCampeonato;
+        document.getElementById('ecMinutos').value = p.minutosTiempo || '';
+        document.getElementById('ecJugadores').value = p.jugadoresCancha || '';
+        document.getElementById('ecEquipos').value = p.equiposParticipantes || '';
+        document.getElementById('ecPuesto').value = p.puestoAlcanzado || 'En curso';
+        document.getElementById('modalEditarCampeonato').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalEditarCampeonato() {
+        document.getElementById('modalEditarCampeonato').classList.replace('flex', 'hidden');
+    }
+
+    async function guardarEdicionCampeonato() {
+        const idPart = document.getElementById('ecIdParticipacion').value;
+        const minutos = document.getElementById('ecMinutos').value.trim();
+        const jugadores = document.getElementById('ecJugadores').value.trim();
+        const equipos = document.getElementById('ecEquipos').value.trim();
+        const puesto = document.getElementById('ecPuesto').value.trim();
+
+        const btn = document.getElementById('btnGuardarEdicionCamp');
+        btn.innerText = "Guardando...";
+        btn.disabled = true;
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'editarParticipacionCampeonato');
+            formData.append('idParticipacion', idPart);
+            formData.append('minutosTiempo', minutos);
+            formData.append('jugadoresCancha', jugadores);
+            formData.append('equiposParticipantes', equipos);
+            formData.append('puestoAlcanzado', puesto || 'En curso');
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const textResponse = await res.text();
+            let data;
+            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
+
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                cerrarModalEditarCampeonato();
+                cargarCampeonatosProfe();
+            } else {
+                throw new Error(data.error || "Error al actualizar.");
+            }
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "💾 Actualizar Datos";
+            btn.disabled = false;
+        }
+    }
+
+    // ==========================================
+    // 4. SELECCIONADOS (FICHAS, EDICIÓN Y BAJA)
     // ==========================================
     async function cargarRosterProfe() {
         const grid = document.getElementById("gridSeleccionadosProfe");
@@ -439,7 +636,6 @@
         reader.readAsDataURL(file);
     }
 
-    // --- Modal Nuevo Jugador ---
     function abrirModalNuevoJugador() {
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
         let htmlGrados = "";
@@ -499,7 +695,6 @@
         }
     }
 
-    // --- Modal Editar Ficha de Jugador ---
     function abrirModalEditarJugador(dni) {
         const j = rosterActual.seleccionados.find(x => x.dni == dni);
         if (!j) return;
@@ -607,7 +802,6 @@
         }
     }
 
-    // --- Modal Traer Jugadores Existentes ---
     function abrirModalAgregarExistente() {
         const cont = document.getElementById("listaDisponiblesModal");
         if (rosterActual.disponibles.length === 0) {
@@ -663,7 +857,7 @@
     }
 
     // ==========================================
-    // 4. ASISTENCIA, ENCUENTROS Y ESTADÍSTICAS
+    // 5. ASISTENCIA, ENCUENTROS Y ESTADÍSTICAS
     // ==========================================
     async function cargarModuloEncuentros(contenedorID) {
         const contenedor = document.getElementById(contenedorID);
@@ -804,7 +998,6 @@
         document.body.appendChild(scriptGuardar);
     }
 
-    // --- Programar Partido ---
     async function iniciarProgramacionPartido() {
         document.getElementById("profeEncuentrosView").classList.add("hidden");
         document.getElementById("programarPartidoView").classList.remove("hidden");
@@ -927,6 +1120,79 @@
         <h3 class="text-lg font-black text-slate-800 mb-2">Aviso del Sistema</h3>
         <p id="alertaMensaje" class="text-sm text-slate-500 mb-6 font-medium leading-snug"></p>
         <button onclick="cerrarAlerta()" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl hover:bg-slate-900 transition">Entendido</button>
+    </div>
+</div>
+
+<!-- Modal Inscribir / Crear Campeonato (DT) -->
+<div id="modalInscribirCampeonato" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xl font-black"><span class="mr-2">🏆</span> Campeonato</h3>
+            <button onclick="cerrarModalInscribirCampeonato()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
+        </div>
+
+        <div class="flex gap-1 bg-slate-100 p-1 rounded-xl mb-4">
+            <button id="tabCampExistente" onclick="cambiarTabCampeonato('existente')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow">Existente</button>
+            <button id="tabCampNuevo" onclick="cambiarTabCampeonato('nuevo')" class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-600">Crear Nuevo</button>
+        </div>
+
+        <div class="overflow-y-auto pr-1 space-y-3">
+            <div id="bloqueCampExistente">
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Campeonatos del Colegio</label>
+                <select id="campExistenteSel" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select>
+                <p class="text-[10px] text-slate-400 mt-1">Si ya fue creado por otro DT, selecciónelo aquí para evitar duplicados.</p>
+            </div>
+
+            <div id="bloqueCampNuevo" class="hidden space-y-3">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nombre del Campeonato</label>
+                    <input type="text" id="campNombreNuevo" placeholder="Ej. ADECOA 2026" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label>
+                    <input type="date" id="campFechaInicio" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white">
+                </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-100">
+                <p class="text-[10px] font-black text-indigo-600 uppercase tracking-wider mb-2">Reglas para esta Selección</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Min/Tiempo</label><input type="number" id="campMinutos" placeholder="35" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Jug/Cancha</label><input type="number" id="campJugadores" placeholder="11" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">N° Equipos</label><input type="number" id="campEquipos" placeholder="8" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Puesto Alcanzado</label>
+                <input type="text" id="campPuesto" value="En curso" placeholder="Ej. En curso, 1er Puesto, Semifinal" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold">
+            </div>
+        </div>
+
+        <button id="btnGuardarCampeonato" onclick="guardarInscripcionCampeonato()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-indigo-700 transition shadow-lg">💾 Guardar Campeonato</button>
+    </div>
+</div>
+
+<!-- Modal Editar Participación Campeonato (DT) -->
+<div id="modalEditarCampeonato" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="ecTitulo" class="text-lg font-black truncate pr-2">Campeonato</h3>
+            <button onclick="cerrarModalEditarCampeonato()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
+        </div>
+        <input type="hidden" id="ecIdParticipacion">
+        <div class="space-y-3">
+            <div class="grid grid-cols-3 gap-2">
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Min/Tiempo</label><input type="number" id="ecMinutos" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Jug/Cancha</label><input type="number" id="ecJugadores" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">N° Equipos</label><input type="number" id="ecEquipos" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold text-center"></div>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Puesto Alcanzado</label>
+                <input type="text" id="ecPuesto" placeholder="Ej. Campeón, 2do Puesto, En curso" class="w-full border-2 border-indigo-200 bg-indigo-50 p-2.5 rounded-xl text-sm font-black text-indigo-900">
+            </div>
+        </div>
+        <button id="btnGuardarEdicionCamp" onclick="guardarEdicionCampeonato()" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl mt-5 hover:bg-indigo-700 transition shadow">💾 Actualizar Datos</button>
     </div>
 </div>
 
@@ -1136,6 +1402,10 @@
         </div>
         <div class="p-4 mt-2">
             <div class="grid grid-cols-2 gap-3">
+                <button onclick="abrirModuloProfe('profeCampeonatosView')" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl p-5 flex items-center justify-between shadow-md active:scale-[0.98] transition">
+                    <div class="text-left"><span class="text-[10px] font-bold uppercase tracking-wider opacity-75">Gestionar Torneos</span><h3 class="text-xl font-black">Campeonatos</h3></div>
+                    <span class="text-4xl">🏆</span>
+                </button>
                 <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
                     <span class="text-4xl mb-3">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
                 </button>
@@ -1217,7 +1487,22 @@
         <div class="p-4"><div id="listaAsistenciaModulo" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"></div></div>
     </div>
 
-    <!-- DT: SELECCIONADOS (Fichas Visuales) -->
+    <!-- DT: CAMPEONATOS -->
+    <div id="profeCampeonatosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Campeonatos</h2>
+            <button onclick="cerrarModuloProfe('profeCampeonatosView')" class="text-indigo-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <button onclick="abrirModalInscribirCampeonato()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 transition mb-4 flex justify-center items-center gap-2">
+                <span class="text-xl">+</span> Inscribir / Crear Campeonato
+            </button>
+            <p class="text-[11px] text-slate-500 text-center mb-3">Toca un campeonato para actualizar reglas o el puesto alcanzado.</p>
+            <div id="listaCampeonatosProfe"></div>
+        </div>
+    </div>
+
+    <!-- DT: SELECCIONADOS -->
     <div id="profeRosterView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
         <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
             <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">👥</span> Seleccionados</h2>
