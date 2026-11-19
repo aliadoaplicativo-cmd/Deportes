@@ -29,8 +29,7 @@
     let base64FotoEditar = "";
     let contenedorEncuentrosActual = "listaEncuentrosProfe";
 
-    // Estado temporal para edición de eventos del DT antes de aprobar
-    let detalleActual = null;
+    let detalleEncuentroActual = null;
     let eventosEditables = [];
 
     // ==========================================
@@ -177,17 +176,13 @@
             formData.append('idColegio', estadoGlobal.idColegio);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
+            const data = JSON.parse(await res.text());
 
             if (data.exito) {
                 mostrarAlerta(data.mensaje);
                 cerrarModalCrearSeleccion();
                 cargarMenuCoordinador();
-            } else {
-                throw new Error(data.error || "Error al crear selección.");
-            }
+            } else throw new Error(data.error || "Error al crear selección.");
         } catch (e) {
             mostrarAlerta(e.message);
         } finally {
@@ -225,17 +220,13 @@
             formData.append('idColegio', estadoGlobal.idColegio);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
+            const data = JSON.parse(await res.text());
 
             if (data.exito) {
                 mostrarAlerta(data.mensaje);
                 cerrarModalNuevoDT();
                 cargarModuloDT();
-            } else {
-                throw new Error(data.error || "Error al registrar DT.");
-            }
+            } else throw new Error(data.error || "Error al registrar DT.");
         } catch (e) {
             mostrarAlerta(e.message);
         } finally {
@@ -403,25 +394,19 @@
             const difGoles = r.gf - r.gc;
             const difTxt = difGoles > 0 ? `+${difGoles}` : `${difGoles}`;
 
-            let avisoPend = "";
-            if (r.pendientes > 0) {
-                avisoPend = `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4 text-xs font-bold flex items-center gap-2">
-                    <span>⏳</span> Hay ${r.pendientes} partido(s) pendiente(s) de aprobación del DT.
-                </div>`;
-            }
+            let avisoPend = r.pendientes > 0
+                ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4 text-xs font-bold flex items-center gap-2"><span>⏳</span> Hay ${r.pendientes} partido(s) pendiente(s) de aprobación del DT.</div>`
+                : "";
 
-            let htmlJug = "";
-            if (!data.jugadores || data.jugadores.length === 0) {
-                htmlJug = "<p class='text-center text-slate-400 text-xs py-6'>Sin jugadores registrados aún.</p>";
-            } else {
-                htmlJug = `
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+            let htmlJug = (!data.jugadores || data.jugadores.length === 0)
+                ? "<p class='text-center text-slate-400 text-xs py-6'>Sin jugadores registrados aún.</p>"
+                : `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200">
                                 <th class="p-2.5 font-bold">Jugador</th>
                                 <th class="p-1.5 text-center font-bold">PJ</th>
-                                <th class="p-1.5 text-center font-bold">Min</th>
+                                <th class="p-1.5 text-center font-bold text-indigo-600">Min</th>
                                 <th class="p-1.5 text-center font-bold">⚽</th>
                                 <th class="p-1.5 text-center font-bold">👟</th>
                                 <th class="p-1.5 text-center font-bold">🟨</th>
@@ -446,41 +431,19 @@
                         </tbody>
                     </table>
                 </div>`;
-            }
 
             cont.innerHTML = `
                 ${avisoPend}
                 <div class="grid grid-cols-2 gap-3 mb-3">
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200">
-                        <p class="text-3xl font-black text-slate-800">${r.pj}</p>
-                        <p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Partidos Jugados</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500">
-                        <p class="text-3xl font-black text-green-600">${r.pg}</p>
-                        <p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400">
-                        <p class="text-3xl font-black text-amber-500">${r.pe}</p>
-                        <p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p>
-                    </div>
-                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500">
-                        <p class="text-3xl font-black text-red-500">${r.pp}</p>
-                        <p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p>
-                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200"><p class="text-3xl font-black text-slate-800">${r.pj}</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Partidos Jugados</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-3xl font-black text-green-600">${r.pg}</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-3xl font-black text-amber-500">${r.pe}</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p></div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-3xl font-black text-red-500">${r.pp}</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p></div>
                 </div>
                 <div class="grid grid-cols-3 gap-2 mb-5">
-                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center">
-                        <p class="text-xl font-black text-slate-800">${r.gf}</p>
-                        <p class="text-[9px] font-bold uppercase text-slate-400">Goles a Favor</p>
-                    </div>
-                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center">
-                        <p class="text-xl font-black text-slate-800">${r.gc}</p>
-                        <p class="text-[9px] font-bold uppercase text-slate-400">En Contra</p>
-                    </div>
-                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center">
-                        <p class="text-xl font-black text-blue-600">${difTxt}</p>
-                        <p class="text-[9px] font-bold uppercase text-slate-400">Diferencia</p>
-                    </div>
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gf}</p><p class="text-[9px] font-bold uppercase text-slate-400">Goles a Favor</p></div>
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gc}</p><p class="text-[9px] font-bold uppercase text-slate-400">En Contra</p></div>
+                    <div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-blue-600">${difTxt}</p><p class="text-[9px] font-bold uppercase text-slate-400">Diferencia</p></div>
                 </div>
                 <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Estadísticas por Jugador</h4>
                 ${htmlJug}
@@ -500,19 +463,14 @@
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerCampeonatosEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            campeonatosActual = {
-                participaciones: data.participaciones || [],
-                disponibles: data.disponibles || []
-            };
+            campeonatosActual = { participaciones: data.participaciones || [], disponibles: data.disponibles || [] };
 
             if (campeonatosActual.participaciones.length === 0) {
                 cont.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Esta selección aún no está inscrita en ningún campeonato.</p>";
                 return;
             }
 
-            let html = "";
-            campeonatosActual.participaciones.forEach(p => {
-                html += `
+            cont.innerHTML = campeonatosActual.participaciones.map(p => `
                 <div onclick="abrirModalEditarCampeonato('${p.idParticipacion}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition">
                     <div class="flex justify-between items-start mb-2">
                         <div>
@@ -526,9 +484,7 @@
                         <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.jugadoresCancha || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Jug/Cancha</p></div>
                         <div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.equiposParticipantes || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Equipos</p></div>
                     </div>
-                </div>`;
-            });
-            cont.innerHTML = html;
+                </div>`).join("");
         } catch (e) {
             cont.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>";
         }
@@ -540,60 +496,37 @@
         const tabNuevo = document.getElementById('tabCampNuevo');
         const blkExist = document.getElementById('bloqueCampExistente');
         const blkNuevo = document.getElementById('bloqueCampNuevo');
-
         if (modo === 'existente') {
             tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow";
             tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
-            blkExist.classList.remove('hidden');
-            blkNuevo.classList.add('hidden');
+            blkExist.classList.remove('hidden'); blkNuevo.classList.add('hidden');
         } else {
             tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow";
             tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
-            blkNuevo.classList.remove('hidden');
-            blkExist.classList.add('hidden');
+            blkNuevo.classList.remove('hidden'); blkExist.classList.add('hidden');
         }
     }
 
     function abrirModalInscribirCampeonato() {
         const sel = document.getElementById('campExistenteSel');
         let html = "<option value=''>Seleccione un campeonato del colegio...</option>";
-        campeonatosActual.disponibles.forEach(c => {
-            html += `<option value="${c.idCampeonato}">${c.nombre} (${c.fechaInicio || 'S/F'})</option>`;
-        });
+        campeonatosActual.disponibles.forEach(c => html += `<option value="${c.idCampeonato}">${c.nombre} (${c.fechaInicio || 'S/F'})</option>`);
         sel.innerHTML = html;
-
         ['campNombreNuevo', 'campFechaInicio', 'campMinutos', 'campJugadores', 'campEquipos'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('campPuesto').value = "En curso";
-
-        if (campeonatosActual.disponibles.length > 0) cambiarTabCampeonato('existente');
-        else cambiarTabCampeonato('nuevo');
-
+        cambiarTabCampeonato(campeonatosActual.disponibles.length > 0 ? 'existente' : 'nuevo');
         document.getElementById('modalInscribirCampeonato').classList.replace('hidden', 'flex');
     }
-    function cerrarModalInscribirCampeonato() {
-        document.getElementById('modalInscribirCampeonato').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalInscribirCampeonato() { document.getElementById('modalInscribirCampeonato').classList.replace('flex', 'hidden'); }
 
     async function guardarInscripcionCampeonato() {
         const idExistente = document.getElementById('campExistenteSel').value;
         const nombreNuevo = document.getElementById('campNombreNuevo').value.trim();
         const fechaInicio = document.getElementById('campFechaInicio').value;
-        const minutos = document.getElementById('campMinutos').value.trim();
-        const jugadores = document.getElementById('campJugadores').value.trim();
-        const equipos = document.getElementById('campEquipos').value.trim();
-        const puesto = document.getElementById('campPuesto').value.trim();
+        if (modoCampeonato === 'existente' && !idExistente) return mostrarAlerta("Seleccione un campeonato existente o cambie a 'Crear Nuevo'.");
+        if (modoCampeonato === 'nuevo' && (!nombreNuevo || !fechaInicio)) return mostrarAlerta("Ingrese el nombre del campeonato y la fecha de inicio.");
 
-        if (modoCampeonato === 'existente' && !idExistente) {
-            return mostrarAlerta("Seleccione un campeonato existente o cambie a la pestaña 'Crear Nuevo'.");
-        }
-        if (modoCampeonato === 'nuevo' && (!nombreNuevo || !fechaInicio)) {
-            return mostrarAlerta("Ingrese el nombre del campeonato y la fecha de inicio.");
-        }
-
-        const btn = document.getElementById('btnGuardarCampeonato');
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
-
+        const btn = document.getElementById('btnGuardarCampeonato'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'inscribirEquipoCampeonato');
@@ -603,35 +536,21 @@
             formData.append('idCampeonatoExistente', idExistente);
             formData.append('nombreNuevo', nombreNuevo);
             formData.append('fechaInicio', fechaInicio);
-            formData.append('minutosTiempo', minutos);
-            formData.append('jugadoresCancha', jugadores);
-            formData.append('equiposParticipantes', equipos);
-            formData.append('puestoAlcanzado', puesto || 'En curso');
+            formData.append('minutosTiempo', document.getElementById('campMinutos').value.trim());
+            formData.append('jugadoresCancha', document.getElementById('campJugadores').value.trim());
+            formData.append('equiposParticipantes', document.getElementById('campEquipos').value.trim());
+            formData.append('puestoAlcanzado', document.getElementById('campPuesto').value.trim() || 'En curso');
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
-
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalInscribirCampeonato();
-                cargarCampeonatosProfe();
-            } else {
-                throw new Error(data.error || "Error al guardar campeonato.");
-            }
-        } catch (e) {
-            mostrarAlerta(e.message);
-        } finally {
-            btn.innerText = "💾 Guardar Campeonato";
-            btn.disabled = false;
-        }
+            const data = JSON.parse(await res.text());
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalInscribirCampeonato(); cargarCampeonatosProfe(); }
+            else throw new Error(data.error || "Error al guardar campeonato.");
+        } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "💾 Guardar Campeonato"; btn.disabled = false; }
     }
 
     function abrirModalEditarCampeonato(idParticipacion) {
         const p = campeonatosActual.participaciones.find(x => x.idParticipacion === idParticipacion);
         if (!p) return;
-
         document.getElementById('ecIdParticipacion').value = p.idParticipacion;
         document.getElementById('ecTitulo').innerText = p.nombreCampeonato;
         document.getElementById('ecMinutos').value = p.minutosTiempo || '';
@@ -640,48 +559,24 @@
         document.getElementById('ecPuesto').value = p.puestoAlcanzado || 'En curso';
         document.getElementById('modalEditarCampeonato').classList.replace('hidden', 'flex');
     }
-    function cerrarModalEditarCampeonato() {
-        document.getElementById('modalEditarCampeonato').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalEditarCampeonato() { document.getElementById('modalEditarCampeonato').classList.replace('flex', 'hidden'); }
 
     async function guardarEdicionCampeonato() {
-        const idPart = document.getElementById('ecIdParticipacion').value;
-        const minutos = document.getElementById('ecMinutos').value.trim();
-        const jugadores = document.getElementById('ecJugadores').value.trim();
-        const equipos = document.getElementById('ecEquipos').value.trim();
-        const puesto = document.getElementById('ecPuesto').value.trim();
-
-        const btn = document.getElementById('btnGuardarEdicionCamp');
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
-
+        const btn = document.getElementById('btnGuardarEdicionCamp'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'editarParticipacionCampeonato');
-            formData.append('idParticipacion', idPart);
-            formData.append('minutosTiempo', minutos);
-            formData.append('jugadoresCancha', jugadores);
-            formData.append('equiposParticipantes', equipos);
-            formData.append('puestoAlcanzado', puesto || 'En curso');
+            formData.append('idParticipacion', document.getElementById('ecIdParticipacion').value);
+            formData.append('minutosTiempo', document.getElementById('ecMinutos').value.trim());
+            formData.append('jugadoresCancha', document.getElementById('ecJugadores').value.trim());
+            formData.append('equiposParticipantes', document.getElementById('ecEquipos').value.trim());
+            formData.append('puestoAlcanzado', document.getElementById('ecPuesto').value.trim() || 'En curso');
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
-
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalEditarCampeonato();
-                cargarCampeonatosProfe();
-            } else {
-                throw new Error(data.error || "Error al actualizar.");
-            }
-        } catch (e) {
-            mostrarAlerta(e.message);
-        } finally {
-            btn.innerText = "💾 Actualizar Datos";
-            btn.disabled = false;
-        }
+            const data = JSON.parse(await res.text());
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarCampeonato(); cargarCampeonatosProfe(); }
+            else throw new Error(data.error || "Error al actualizar.");
+        } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "💾 Actualizar Datos"; btn.disabled = false; }
     }
 
     // ==========================================
@@ -690,24 +585,17 @@
     async function cargarRosterProfe() {
         const grid = document.getElementById("gridSeleccionadosProfe");
         grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 animate-pulse'>Cargando plantilla...</p>";
-
         try {
             const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
             const res = await fetch(`${URL_BACKEND}?action=obtenerRoster&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&grados=${encodeURIComponent(eqInfo.categoria)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            rosterActual = {
-                seleccionados: data.seleccionados || [],
-                disponibles: data.disponibles || []
-            };
+            rosterActual = { seleccionados: data.seleccionados || [], disponibles: data.disponibles || [] };
 
             if (rosterActual.seleccionados.length === 0) {
-                grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 text-xs'>Aún no hay jugadores en esta selección. Usa los botones de arriba para agregar.</p>";
+                grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 text-xs'>Aún no hay jugadores en esta selección.</p>";
                 return;
             }
-
-            let html = "";
-            rosterActual.seleccionados.forEach(j => {
-                html += `
+            grid.innerHTML = rosterActual.seleccionados.map(j => `
                 <div onclick="abrirModalEditarJugador('${j.dni}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative cursor-pointer hover:shadow-md active:scale-95 transition">
                     <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2.5 py-1 text-xs rounded-bl-xl z-10">${j.camiseta || '-'}</span>
                     <span class="absolute top-2 left-2 bg-white/90 text-slate-700 p-1 rounded-full text-[10px] shadow">✏️</span>
@@ -716,29 +604,22 @@
                         <p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p>
                         <p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p>
                     </div>
-                </div>`;
-            });
-            grid.innerHTML = html;
-        } catch (e) {
-            grid.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>";
-        }
+                </div>`).join("");
+        } catch (e) { grid.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
     }
 
     function procesarFotoSubida(event, imgPreviewId, modo) {
-        const file = event.target.files[0];
-        if (!file) return;
+        const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             const img = new Image();
             img.onload = function() {
                 const canvas = document.createElement('canvas');
                 const scaleSize = 300 / img.width;
-                canvas.width = 300;
-                canvas.height = img.height * scaleSize;
+                canvas.width = 300; canvas.height = img.height * scaleSize;
                 canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
                 const compressed = canvas.toDataURL('image/jpeg', 0.65);
-                if (modo === 'nuevo') base64FotoNuevo = compressed;
-                else base64FotoEditar = compressed;
+                if (modo === 'nuevo') base64FotoNuevo = compressed; else base64FotoEditar = compressed;
                 document.getElementById(imgPreviewId).src = compressed;
             };
             img.src = e.target.result;
@@ -748,74 +629,40 @@
 
     function abrirModalNuevoJugador() {
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
-        let htmlGrados = "";
-        eqInfo.categoria.split(',').forEach(g => htmlGrados += `<option value="${g.trim()}">${g.trim()}</option>`);
-        document.getElementById('njGrado').innerHTML = htmlGrados;
-
+        document.getElementById('njGrado').innerHTML = eqInfo.categoria.split(',').map(g => `<option value="${g.trim()}">${g.trim()}</option>`).join('');
         ['njDni', 'njNombres', 'njApellidos', 'njCamiseta', 'njInputFoto'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Foto";
         base64FotoNuevo = "";
         document.getElementById('modalNuevoJugador').classList.replace('hidden', 'flex');
     }
-    function cerrarModalNuevoJugador() {
-        document.getElementById('modalNuevoJugador').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalNuevoJugador() { document.getElementById('modalNuevoJugador').classList.replace('flex', 'hidden'); }
 
     async function guardarNuevoJugador() {
-        const dni = document.getElementById('njDni').value.trim();
-        const nom = document.getElementById('njNombres').value.trim();
-        const ap = document.getElementById('njApellidos').value.trim();
-        const gr = document.getElementById('njGrado').value;
-        const cam = document.getElementById('njCamiseta').value.trim();
+        const dni = document.getElementById('njDni').value.trim(), nom = document.getElementById('njNombres').value.trim();
         if (!dni || !nom) return mostrarAlerta("Complete DNI y Nombres.");
-
-        const btn = document.getElementById('btnGuardarNuevoJugador');
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
-
+        const btn = document.getElementById('btnGuardarNuevoJugador'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'registrarNuevoJugador');
-            formData.append('dni', dni);
-            formData.append('nombres', nom);
-            formData.append('apellidos', ap);
-            formData.append('grado', gr);
-            formData.append('camiseta', cam);
+            formData.append('dni', dni); formData.append('nombres', nom);
+            formData.append('apellidos', document.getElementById('njApellidos').value.trim());
+            formData.append('grado', document.getElementById('njGrado').value);
+            formData.append('camiseta', document.getElementById('njCamiseta').value.trim());
             formData.append('idColegio', estadoGlobal.idColegio);
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             if (base64FotoNuevo) formData.append('fotoBase64', base64FotoNuevo);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
-
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalNuevoJugador();
-                cargarRosterProfe();
-            } else {
-                throw new Error(data.error || "Error al registrar.");
-            }
-        } catch (e) {
-            mostrarAlerta(e.message);
-        } finally {
-            btn.innerText = "Registrar y Agregar";
-            btn.disabled = false;
-        }
+            const data = JSON.parse(await res.text());
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoJugador(); cargarRosterProfe(); }
+            else throw new Error(data.error || "Error al registrar.");
+        } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "Registrar y Agregar"; btn.disabled = false; }
     }
 
     function abrirModalEditarJugador(dni) {
-        const j = rosterActual.seleccionados.find(x => x.dni == dni);
-        if (!j) return;
-
+        const j = rosterActual.seleccionados.find(x => x.dni == dni); if (!j) return;
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
-        let htmlGrados = "";
-        eqInfo.categoria.split(',').forEach(g => {
-            const gt = g.trim();
-            htmlGrados += `<option value="${gt}" ${gt === j.grado ? 'selected' : ''}>${gt}</option>`;
-        });
-        document.getElementById('ejGrado').innerHTML = htmlGrados;
+        document.getElementById('ejGrado').innerHTML = eqInfo.categoria.split(',').map(g => `<option value="${g.trim()}" ${g.trim() === j.grado ? 'selected' : ''}>${g.trim()}</option>`).join('');
         document.getElementById('ejDni').value = j.dni;
         document.getElementById('ejNombres').value = j.nombres;
         document.getElementById('ejApellidos').value = j.apellidos;
@@ -833,147 +680,82 @@
     }
 
     async function guardarEdicionJugador() {
-        const dni = document.getElementById('ejDni').value;
         const nom = document.getElementById('ejNombres').value.trim();
-        const ap = document.getElementById('ejApellidos').value.trim();
-        const gr = document.getElementById('ejGrado').value;
-        const cam = document.getElementById('ejCamiseta').value.trim();
         if (!nom) return mostrarAlerta("El nombre no puede estar vacío.");
-
-        const btn = document.getElementById('btnGuardarEdicion');
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
-
+        const btn = document.getElementById('btnGuardarEdicion'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'editarJugador');
-            formData.append('dni', dni);
+            formData.append('dni', document.getElementById('ejDni').value);
             formData.append('nombres', nom);
-            formData.append('apellidos', ap);
-            formData.append('grado', gr);
-            formData.append('camiseta', cam);
+            formData.append('apellidos', document.getElementById('ejApellidos').value.trim());
+            formData.append('grado', document.getElementById('ejGrado').value);
+            formData.append('camiseta', document.getElementById('ejCamiseta').value.trim());
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             if (base64FotoEditar) formData.append('fotoBase64', base64FotoEditar);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
-
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalEditarJugador();
-                cargarRosterProfe();
-            } else {
-                throw new Error(data.error || "Error al actualizar.");
-            }
-        } catch (e) {
-            mostrarAlerta(e.message);
-        } finally {
-            btn.innerText = "💾 Guardar Cambios";
-            btn.disabled = false;
-        }
+            const data = JSON.parse(await res.text());
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarJugador(); cargarRosterProfe(); }
+            else throw new Error(data.error || "Error al actualizar.");
+        } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; }
     }
 
     async function quitarJugadorDeSeleccion() {
-        const dni = document.getElementById('ejDni').value;
         const motivoSel = document.getElementById('ejMotivoBaja').value;
         const detalle = document.getElementById('ejDetalleBaja').value.trim();
-        const motivoFinal = detalle ? `${motivoSel}: ${detalle}` : motivoSel;
-
-        const btn = document.getElementById('btnQuitarJugador');
-        btn.innerText = "Procesando...";
-        btn.disabled = true;
-
+        const btn = document.getElementById('btnQuitarJugador'); btn.innerText = "Procesando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'quitarJugadorDeSeleccion');
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
-            formData.append('dni', dni);
-            formData.append('motivo', motivoFinal);
+            formData.append('dni', document.getElementById('ejDni').value);
+            formData.append('motivo', detalle ? `${motivoSel}: ${detalle}` : motivoSel);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
-            const textResponse = await res.text();
-            let data;
-            try { data = JSON.parse(textResponse); } catch (e) { throw new Error("Respuesta no válida del servidor."); }
-
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalEditarJugador();
-                cargarRosterProfe();
-            } else {
-                throw new Error(data.error || "Error al quitar jugador.");
-            }
-        } catch (e) {
-            mostrarAlerta(e.message);
-        } finally {
-            btn.innerText = "Confirmar Retiro";
-            btn.disabled = false;
-        }
+            const data = JSON.parse(await res.text());
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarJugador(); cargarRosterProfe(); }
+            else throw new Error(data.error || "Error al quitar jugador.");
+        } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "Confirmar Retiro"; btn.disabled = false; }
     }
 
     function abrirModalAgregarExistente() {
         const cont = document.getElementById("listaDisponiblesModal");
-        if (rosterActual.disponibles.length === 0) {
-            cont.innerHTML = "<p class='text-center text-slate-400 text-xs py-6'>No hay más alumnos disponibles en estos grados.</p>";
-        } else {
-            let html = "";
-            rosterActual.disponibles.forEach(j => {
-                html += `
+        cont.innerHTML = rosterActual.disponibles.length === 0
+            ? "<p class='text-center text-slate-400 text-xs py-6'>No hay más alumnos disponibles en estos grados.</p>"
+            : rosterActual.disponibles.map(j => `
                 <div class="flex items-center justify-between py-3">
                     <div class="flex items-center gap-3">
                         <img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover bg-slate-100">
-                        <div>
-                            <p class="font-bold text-sm text-slate-800 leading-tight">${j.nombre}</p>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase">${j.grado}</p>
-                        </div>
+                        <div><p class="font-bold text-sm text-slate-800 leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase">${j.grado}</p></div>
                     </div>
                     <button onclick="agregarExistenteAlEquipo('${j.dni}', '${j.camiseta || ''}', this)" class="bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-lg hover:bg-blue-200 transition">+ Sumar</button>
-                </div>`;
-            });
-            cont.innerHTML = html;
-        }
+                </div>`).join("");
         document.getElementById('modalAgregarExistente').classList.replace('hidden', 'flex');
     }
-    function cerrarModalAgregarExistente() {
-        document.getElementById('modalAgregarExistente').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalAgregarExistente() { document.getElementById('modalAgregarExistente').classList.replace('flex', 'hidden'); }
 
     async function agregarExistenteAlEquipo(dni, camiseta, btn) {
-        btn.innerText = "...";
-        btn.disabled = true;
+        btn.innerText = "..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'agregarJugadorASeleccion');
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
-            formData.append('dni', dni);
-            formData.append('camiseta', camiseta);
-
+            formData.append('dni', dni); formData.append('camiseta', camiseta);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) {
-                btn.innerText = "✓ Listo";
-                btn.classList.replace('bg-blue-100', 'bg-green-100');
-                btn.classList.replace('text-blue-700', 'text-green-700');
-                cargarRosterProfe();
-            } else {
-                btn.innerText = "+ Sumar";
-                btn.disabled = false;
-            }
-        } catch (e) {
-            btn.innerText = "+ Sumar";
-            btn.disabled = false;
-        }
+            if (data.exito) { btn.innerText = "✓ Listo"; btn.classList.replace('bg-blue-100', 'bg-green-100'); btn.classList.replace('text-blue-700', 'text-green-700'); cargarRosterProfe(); }
+            else { btn.innerText = "+ Sumar"; btn.disabled = false; }
+        } catch (e) { btn.innerText = "+ Sumar"; btn.disabled = false; }
     }
 
     // ==========================================
-    // 6. ENCUENTROS, DETALLE, EDICIÓN DE EVENTOS Y APROBACIÓN
+    // 6. ENCUENTROS, DETALLE, EDICIÓN DE EVENTOS Y APROBACIÓN DEL DT
     // ==========================================
     async function cargarModuloEncuentros(contenedorID) {
         contenedorEncuentrosActual = contenedorID;
         const contenedor = document.getElementById(contenedorID);
         contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Cargando partidos...</p>";
-
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerEncuentrosEquipoCoordinador&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
@@ -981,16 +763,10 @@
                 contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>No hay encuentros programados.</p>";
                 return;
             }
-            const formatDate = (dateStr) => {
-                const d = new Date(dateStr);
-                return d.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            };
-
-            let html = "";
-            data.encuentros.forEach(e => {
+            const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            contenedor.innerHTML = data.encuentros.map(e => {
                 let badgeEstado = '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>';
                 let marcadorHtml = "";
-
                 if (e.estado === 'Pendiente Aprobación') {
                     badgeEstado = '<span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold animate-pulse">⏳ PENDIENTE APROBACIÓN</span>';
                     marcadorHtml = `<div class="mt-2 inline-block bg-amber-50 border border-amber-200 text-amber-900 font-black text-xs px-2.5 py-1 rounded-lg">Marcador reportado: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
@@ -998,24 +774,17 @@
                     badgeEstado = '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">✅ APROBADO</span>';
                     marcadorHtml = `<div class="mt-2 inline-block bg-slate-800 text-white font-black text-xs px-3 py-1 rounded-lg">Final: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
                 }
-
-                html += `
+                return `
                 <div onclick="abrirDetalleEncuentro('${e.idEncuentro}')" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition">
-                    <div class="flex justify-between items-start gap-2 mb-1">
-                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">vs Rival</p>
-                        ${badgeEstado}
-                    </div>
+                    <div class="flex justify-between items-start gap-2 mb-1"><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">vs Rival</p>${badgeEstado}</div>
                     <h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-2">${e.rival}</h3>
                     <div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div>
                     <div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div>
                     ${marcadorHtml}
                     <p class="text-[10px] text-blue-600 font-bold mt-2 text-right">Tocar para ver detalle →</p>
                 </div>`;
-            });
-            contenedor.innerHTML = html;
-        } catch (e) {
-            contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>";
-        }
+            }).join("");
+        } catch (e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
     }
 
     async function abrirDetalleEncuentro(idEncuentro) {
@@ -1029,228 +798,91 @@
             const d = await res.json();
             if (d.error) throw new Error(d.error);
 
-            detalleActual = d;
-            eventosEditables = (d.eventos || []).map(ev => ({ ...ev }));
-            renderDetalleEncuentro();
-        } catch (e) {
-            body.innerHTML = `<p class='text-center text-red-500 text-xs py-8'>Error: ${e.message}</p>`;
-        }
+            detalleEncuentroActual = d;
+            eventosEditables = (d.eventos || []).map(ev => ({ minuto: ev.minuto, tipo: ev.tipo, dni: ev.dni.toString().trim() }));
+
+            const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            const esDT = estadoGlobal.rol === 'Profesor';
+            const puedeEditarDT = esDT && d.estado === 'Pendiente Aprobación';
+
+            let bloqueEstado = "";
+            if (d.estado === 'Activo') {
+                const linkMesa = `${URL_GITHUB}?token=${d.token}`;
+                bloqueEstado = `<div class="bg-green-50 border border-green-200 rounded-xl p-3 text-center"><p class="text-xs font-black text-green-800 mb-1">🟢 Partido Activo (En espera de registro)</p>${esDT ? `<div class="flex mt-2"><input type="text" id="detLinkMesa" value="${linkMesa}" readonly class="w-full border border-green-300 p-1.5 rounded-l-lg text-[10px] bg-white font-mono"><button onclick="copiarTextoInput('detLinkMesa')" class="bg-green-600 text-white px-3 rounded-r-lg text-[10px] font-bold">Copiar Link</button></div>` : ''}</div>`;
+            } else if (d.estado === 'Pendiente Aprobación') {
+                bloqueEstado = `<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2"><p class="text-xs font-black text-amber-800">⏳ Pendiente de Aprobación del DT</p><p class="text-[11px] text-amber-900">Registrado por: <b>${d.padreRegistrador || 'No indicado'}</b></p>${esDT ? `<div class="grid grid-cols-2 gap-2 pt-2"><div><label class="block text-[9px] font-bold text-amber-800 uppercase">Nuestros Goles</label><input type="number" id="aprGolesPropio" value="${d.golesPropio}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white"></div><div><label class="block text-[9px] font-bold text-amber-800 uppercase">Goles Rival</label><input type="number" id="aprGolesRival" value="${d.golesRival}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white"></div></div><div><label class="block text-[9px] font-bold text-amber-800 uppercase">Incidencias / Observaciones</label><textarea id="aprIncidencias" rows="2" class="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white">${d.incidencias || ''}</textarea></div><button id="btnAprobarPartido" onclick="aprobarEncuentro('${d.idEncuentro}')" class="w-full bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-xl text-xs shadow transition">✅ Aprobar Partido Oficialmente</button>` : `<p class="text-lg font-black text-slate-800 text-center">Marcador: ${d.golesPropio} - ${d.golesRival}</p>`}</div>`;
+            } else {
+                bloqueEstado = `<div class="bg-slate-900 text-white rounded-xl p-4 text-center"><span class="text-[10px] font-bold uppercase text-blue-300">✅ Resultado Oficial Aprobado</span><p class="text-3xl font-black mt-1">${d.golesPropio} - ${d.golesRival}</p>${d.padreRegistrador ? `<p class="text-[10px] text-slate-400 mt-1">Mesa de Control: ${d.padreRegistrador}</p>` : ''}</div>`;
+            }
+
+            const bloqueIncidencias = (d.estado === 'Cerrado/Aprobado' && d.incidencias)
+                ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Incidencias</p><p class="text-slate-700">${d.incidencias}</p></div>` : '';
+
+            const titulares = (d.convocados || []).filter(c => c.rol === 'Titular');
+            const banca = (d.convocados || []).filter(c => c.rol !== 'Titular');
+            const chipJug = (c, color) => `<span class="inline-block ${color} text-[10px] font-bold px-2 py-1 rounded-lg mr-1 mb-1">#${c.camiseta} ${c.nombre}</span>`;
+
+            let seccionCronologia = "";
+            if (puedeEditarDT) {
+                const optsJug = (d.convocados || []).map(c => `<option value="${c.dni}">#${c.camiseta} ${c.nombre}</option>`).join("");
+                seccionCronologia = `<div><p class="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-1">✏️ Revisar / Corregir Eventos (Antes de aprobar)</p><div id="listaEventosEditables" class="bg-white border border-slate-200 rounded-xl p-2 space-y-2 mb-2"></div><div class="bg-slate-50 border border-slate-200 rounded-xl p-2 space-y-1.5"><p class="text-[10px] font-bold text-slate-500 uppercase">+ Agregar evento faltante</p><div class="grid grid-cols-3 gap-1.5"><input type="text" id="nuevoEvMin" placeholder="1T 15'" value="1T 1'" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white"><select id="nuevoEvTipo" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white"><option value="Gol">⚽ Gol</option><option value="Asistencia">👟 Asist.</option><option value="Amarilla">🟨 Amarilla</option><option value="Roja">🟥 Roja</option><option value="Entra">⬆️ Entra</option><option value="Sale">⬇️ Sale</option></select><select id="nuevoEvDni" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white">${optsJug}</select></div><button onclick="agregarEventoDT()" class="w-full bg-slate-800 text-white text-[11px] font-bold py-1.5 rounded-lg hover:bg-slate-900 transition">+ Añadir a la lista</button></div></div>`;
+            } else {
+                const iconos = { "Gol": "⚽", "Asistencia": "👟", "Amarilla": "🟨", "Roja": "🟥", "Sale": "⬇️", "Entra": "⬆️" };
+                const htmlEventos = d.eventos && d.eventos.length > 0
+                    ? d.eventos.map(ev => `<div class="flex items-center gap-2 text-xs py-1.5 border-b border-slate-100"><span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-2 py-0.5 rounded">${ev.minuto}</span><span>${iconos[ev.tipo] || '•'}</span><span class="font-bold text-slate-800">${ev.tipo}</span><span class="text-slate-500">— #${ev.camiseta} ${ev.jugador}</span></div>`).join("")
+                    : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
+                seccionCronologia = `<div><p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">🕒 Cronología de Eventos</p><div class="bg-white border border-slate-200 rounded-xl px-3 py-1">${htmlEventos}</div></div>`;
+            }
+
+            body.innerHTML = `<div class="space-y-4"><div><p class="text-[10px] font-bold text-indigo-600 uppercase">${d.campeonato}</p><h4 class="text-xl font-black text-slate-800 uppercase">vs ${d.rival}</h4><p class="text-xs text-slate-500 font-bold">📅 ${formatDate(d.fechaPartido)} • 🏟️ ${d.lugar}</p></div>${bloqueEstado}${bloqueIncidencias}${seccionCronologia}<div><p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">👥 Plantel Convocado</p>${titulares.length > 0 ? `<div class="mb-2"><p class="text-[10px] font-bold text-green-700 mb-1">Titulares:</p>${titulares.map(c => chipJug(c, 'bg-green-100 text-green-800')).join('')}</div>` : ''}${banca.length > 0 ? `<div><p class="text-[10px] font-bold text-slate-500 mb-1">Banca / Convocados:</p>${banca.map(c => chipJug(c, 'bg-slate-100 text-slate-700')).join('')}</div>` : ''}</div></div>`;
+
+            if (puedeEditarDT) renderEventosEditablesDT();
+        } catch (e) { body.innerHTML = `<p class='text-center text-red-500 text-xs py-8'>Error: ${e.message}</p>`; }
     }
 
-    function renderDetalleEncuentro() {
-        const d = detalleActual;
-        const body = document.getElementById("bodyDetalleEncuentro");
-        const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-        const esDT = estadoGlobal.rol === 'Profesor';
-        const puedeEditarDT = esDT && d.estado === 'Pendiente Aprobación';
-
-        let bloqueEstado = "";
-        if (d.estado === 'Activo') {
-            const linkMesa = `${URL_GITHUB}?token=${d.token}`;
-            bloqueEstado = `
-            <div class="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
-                <p class="text-xs font-black text-green-800 mb-1">🟢 Partido Activo (En espera de registro)</p>
-                ${esDT ? `
-                <div class="flex mt-2">
-                    <input type="text" id="detLinkMesa" value="${linkMesa}" readonly class="w-full border border-green-300 p-1.5 rounded-l-lg text-[10px] bg-white font-mono">
-                    <button onclick="copiarTextoInput('detLinkMesa')" class="bg-green-600 text-white px-3 rounded-r-lg text-[10px] font-bold">Copiar Link</button>
-                </div>` : ''}
-            </div>`;
-        } else if (d.estado === 'Pendiente Aprobación') {
-            bloqueEstado = `
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-                <p class="text-xs font-black text-amber-800">⏳ Pendiente de Aprobación del DT</p>
-                <p class="text-[11px] text-amber-900">Registrado por: <b>${d.padreRegistrador || 'No indicado'}</b></p>
-                ${esDT ? `
-                <div class="grid grid-cols-2 gap-2 pt-2">
-                    <div>
-                        <label class="block text-[9px] font-bold text-amber-800 uppercase">Nuestros Goles</label>
-                        <input type="number" id="aprGolesPropio" value="${d.golesPropio}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
-                    </div>
-                    <div>
-                        <label class="block text-[9px] font-bold text-amber-800 uppercase">Goles Rival</label>
-                        <input type="number" id="aprGolesRival" value="${d.golesRival}" class="w-full border border-amber-300 rounded-lg p-1.5 text-center font-black text-lg bg-white">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[9px] font-bold text-amber-800 uppercase">Incidencias / Observaciones</label>
-                    <textarea id="aprIncidencias" rows="2" class="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white">${d.incidencias || ''}</textarea>
-                </div>
-                <button id="btnAprobarPartido" onclick="aprobarEncuentro('${d.idEncuentro}')" class="w-full bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-xl text-xs shadow transition">✅ Aprobar Partido Oficialmente</button>
-                ` : `<p class="text-lg font-black text-slate-800 text-center">Marcador: ${d.golesPropio} - ${d.golesRival}</p>`}
-            </div>`;
-        } else {
-            bloqueEstado = `
-            <div class="bg-slate-900 text-white rounded-xl p-4 text-center">
-                <span class="text-[10px] font-bold uppercase text-blue-300">✅ Resultado Oficial Aprobado</span>
-                <p class="text-3xl font-black mt-1">${d.golesPropio} - ${d.golesRival}</p>
-                ${d.padreRegistrador ? `<p class="text-[10px] text-slate-400 mt-1">Mesa de Control: ${d.padreRegistrador}</p>` : ''}
-            </div>`;
-        }
-
-        const bloqueIncidencias = (d.estado === 'Cerrado/Aprobado' && d.incidencias)
-            ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs"><p class="text-[10px] font-bold text-slate-400 uppercase mb-1">Incidencias</p><p class="text-slate-700">${d.incidencias}</p></div>`
-            : '';
-
-        const iconos = { "Gol": "⚽", "Asistencia": "👟", "Amarilla": "🟨", "Roja": "🟥", "Sale": "⬇️", "Entra": "⬆️" };
-        let htmlEventos = "";
-
-        if (puedeEditarDT) {
-            const optsJugadores = (d.convocados || []).map(c => `<option value="${c.dni}">#${c.camiseta} ${c.nombre}</option>`).join("");
-            htmlEventos = eventosEditables.length > 0
-                ? eventosEditables.map((ev, idx) => `
-                    <div class="flex items-center justify-between gap-1.5 text-xs py-2 border-b border-slate-100">
-                        <span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0">${ev.minuto}</span>
-                        <span class="shrink-0">${iconos[ev.tipo] || '•'} <b>${ev.tipo}</b></span>
-                        <select onchange="cambiarJugadorEvento(${idx}, this.value)" class="flex-1 border border-slate-300 rounded-lg p-1 text-[11px] font-bold bg-white min-w-0">
-                            ${(d.convocados || []).map(c => `<option value="${c.dni}" ${c.dni == ev.dni ? 'selected' : ''}>#${c.camiseta} ${c.nombre}</option>`).join("")}
-                        </select>
-                        <button onclick="eliminarEventoDT(${idx})" class="bg-red-50 text-red-600 px-2 py-1 rounded-lg text-[10px] font-bold shrink-0" title="Eliminar evento">✕</button>
-                    </div>`).join("")
-                : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
-
-            // Formulario rápido para agregar un evento faltante
-            htmlEventos += `
-                <div class="mt-3 pt-2 border-t border-slate-200 space-y-2">
-                    <p class="text-[10px] font-bold text-blue-600 uppercase">+ Agregar evento faltante</p>
-                    <div class="grid grid-cols-3 gap-1.5">
-                        <input type="text" id="nuevoEvMin" placeholder="Ej. 2T 15'" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold">
-                        <select id="nuevoEvTipo" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white">
-                            <option value="Gol">⚽ Gol</option>
-                            <option value="Asistencia">👟 Asistencia</option>
-                            <option value="Amarilla">🟨 Amarilla</option>
-                            <option value="Roja">🟥 Roja</option>
-                            <option value="Entra">⬆️ Entra</option>
-                            <option value="Sale">⬇️ Sale</option>
-                        </select>
-                        <select id="nuevoEvDni" class="border border-slate-300 rounded-lg p-1.5 text-[11px] font-bold bg-white">${optsJugadores}</select>
-                    </div>
-                    <button onclick="agregarEventoDT()" class="w-full bg-blue-50 text-blue-700 border border-blue-200 font-bold py-1.5 rounded-lg text-[11px] hover:bg-blue-100 transition">+ Añadir a la cronología</button>
-                </div>`;
-        } else {
-            htmlEventos = eventosEditables.length > 0
-                ? eventosEditables.map(ev => `
-                    <div class="flex items-center gap-2 text-xs py-1.5 border-b border-slate-100">
-                        <span class="bg-slate-100 text-slate-600 font-mono text-[10px] font-bold px-2 py-0.5 rounded">${ev.minuto}</span>
-                        <span>${iconos[ev.tipo] || '•'}</span>
-                        <span class="font-bold text-slate-800">${ev.tipo}</span>
-                        <span class="text-slate-500">— #${ev.camiseta} ${ev.jugador}</span>
-                    </div>`).join("")
-                : "<p class='text-xs text-slate-400 py-2'>Sin eventos registrados.</p>";
-        }
-
-        const titulares = (d.convocados || []).filter(c => c.rol === 'Titular');
-        const banca = (d.convocados || []).filter(c => c.rol !== 'Titular');
-        const chipJug = (c, color) => `<span class="inline-block ${color} text-[10px] font-bold px-2 py-1 rounded-lg mr-1 mb-1">#${c.camiseta} ${c.nombre}</span>`;
-
-        body.innerHTML = `
-            <div class="space-y-4">
-                <div>
-                    <p class="text-[10px] font-bold text-indigo-600 uppercase">${d.campeonato}</p>
-                    <h4 class="text-xl font-black text-slate-800 uppercase">vs ${d.rival}</h4>
-                    <p class="text-xs text-slate-500 font-bold">📅 ${formatDate(d.fechaPartido)} • 🏟️ ${d.lugar}</p>
-                </div>
-
-                ${bloqueEstado}
-                ${bloqueIncidencias}
-
-                <div>
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">🕒 Cronología de Eventos ${puedeEditarDT ? '(Editable por el DT)' : ''}</p>
-                    <div class="bg-white border border-slate-200 rounded-xl px-3 py-2">${htmlEventos}</div>
-                </div>
-
-                <div>
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">👥 Plantel Convocado</p>
-                    ${titulares.length > 0 ? `<div class="mb-2"><p class="text-[10px] font-bold text-green-700 mb-1">Titulares:</p>${titulares.map(c => chipJug(c, 'bg-green-100 text-green-800')).join('')}</div>` : ''}
-                    ${banca.length > 0 ? `<div><p class="text-[10px] font-bold text-slate-500 mb-1">Banca / Convocados:</p>${banca.map(c => chipJug(c, 'bg-slate-100 text-slate-700')).join('')}</div>` : ''}
-                </div>
-            </div>
-        `;
+    function renderEventosEditablesDT() {
+        const cont = document.getElementById("listaEventosEditables");
+        if (!cont || !detalleEncuentroActual) return;
+        if (eventosEditables.length === 0) { cont.innerHTML = "<p class='text-center text-slate-400 text-xs py-2'>Sin eventos registrados.</p>"; return; }
+        const tipos = ["Gol", "Asistencia", "Amarilla", "Roja", "Entra", "Sale"];
+        const convocados = detalleEncuentroActual.convocados || [];
+        cont.innerHTML = eventosEditables.map((ev, idx) => `
+            <div class="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                <input type="text" value="${ev.minuto}" onchange="actualizarEventoDT(${idx}, 'minuto', this.value)" class="w-14 border border-slate-300 rounded px-1 py-1 text-[10px] font-mono font-bold text-center bg-white">
+                <select onchange="actualizarEventoDT(${idx}, 'tipo', this.value)" class="border border-slate-300 rounded px-1 py-1 text-[10px] font-bold bg-white">${tipos.map(t => `<option value="${t}" ${t === ev.tipo ? 'selected' : ''}>${t}</option>`).join('')}</select>
+                <select onchange="actualizarEventoDT(${idx}, 'dni', this.value)" class="flex-1 min-w-0 border border-slate-300 rounded px-1 py-1 text-[10px] font-bold bg-white truncate">${convocados.map(c => `<option value="${c.dni}" ${c.dni == ev.dni ? 'selected' : ''}>#${c.camiseta} ${c.nombre}</option>`).join('')}</select>
+                <button onclick="eliminarEventoDT(${idx})" class="bg-red-100 text-red-600 font-bold text-[10px] px-2 py-1 rounded hover:bg-red-200">✕</button>
+            </div>`).join("");
     }
 
-    function cambiarJugadorEvento(idx, nuevoDni) {
-        const jug = (detalleActual.convocados || []).find(c => c.dni == nuevoDni);
-        if (eventosEditables[idx] && jug) {
-            eventosEditables[idx].dni = jug.dni;
-            eventosEditables[idx].jugador = jug.nombre;
-            eventosEditables[idx].camiseta = jug.camiseta;
-        }
-    }
-
-    function eliminarEventoDT(idx) {
-        const ev = eventosEditables[idx];
-        eventosEditables.splice(idx, 1);
-        if (ev && ev.tipo === 'Gol') {
-            detalleActual.golesPropio = Math.max(0, (Number(detalleActual.golesPropio) || 0) - 1);
-        }
-        renderDetalleEncuentro();
-    }
-
+    function actualizarEventoDT(idx, campo, valor) { if (!eventosEditables[idx]) return; eventosEditables[idx][campo] = valor; if (campo === 'tipo') recalcularGolesDT(); }
+    function eliminarEventoDT(idx) { eventosEditables.splice(idx, 1); renderEventosEditablesDT(); recalcularGolesDT(); }
     function agregarEventoDT() {
-        const min = document.getElementById("nuevoEvMin").value.trim() || "1T 1'";
+        const dni = document.getElementById("nuevoEvDni").value; if (!dni) return;
         const tipo = document.getElementById("nuevoEvTipo").value;
-        const dni = document.getElementById("nuevoEvDni").value;
-        const jug = (detalleActual.convocados || []).find(c => c.dni == dni);
-        if (!jug) return;
-
-        eventosEditables.push({
-            minuto: min,
-            tipo: tipo,
-            dni: jug.dni,
-            jugador: jug.nombre,
-            camiseta: jug.camiseta
-        });
-        if (tipo === 'Gol') {
-            detalleActual.golesPropio = (Number(detalleActual.golesPropio) || 0) + 1;
-        }
-        renderDetalleEncuentro();
+        eventosEditables.push({ minuto: document.getElementById("nuevoEvMin").value.trim() || "1T 1'", tipo: tipo, dni: dni });
+        renderEventosEditablesDT(); if (tipo === 'Gol') recalcularGolesDT();
     }
-
-    function cerrarDetalleEncuentro() {
-        document.getElementById("modalDetalleEncuentro").classList.replace("flex", "hidden");
-    }
-
-    function copiarTextoInput(idInput) {
-        const inp = document.getElementById(idInput);
-        inp.select();
-        document.execCommand("copy");
-        mostrarAlerta("Enlace copiado al portapapeles.");
-    }
+    function recalcularGolesDT() { const inp = document.getElementById("aprGolesPropio"); if (inp) inp.value = eventosEditables.filter(e => e.tipo === 'Gol').length; }
+    function cerrarDetalleEncuentro() { document.getElementById("modalDetalleEncuentro").classList.replace("flex", "hidden"); }
+    function copiarTextoInput(idInput) { const inp = document.getElementById(idInput); inp.select(); document.execCommand("copy"); mostrarAlerta("Enlace copiado al portapapeles."); }
 
     async function aprobarEncuentro(idEncuentro) {
-        const gp = document.getElementById("aprGolesPropio").value;
-        const gr = document.getElementById("aprGolesRival").value;
-        const inc = document.getElementById("aprIncidencias").value.trim();
-
-        const btn = document.getElementById("btnAprobarPartido");
-        btn.innerText = "Aprobando...";
-        btn.disabled = true;
-
+        const btn = document.getElementById("btnAprobarPartido"); btn.innerText = "Aprobando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
             formData.append("action", "aprobarEncuentroDT");
             formData.append("idEncuentro", idEncuentro);
-            formData.append("golesPropio", gp);
-            formData.append("golesRival", gr);
-            formData.append("incidencias", inc);
-            formData.append("eventos", JSON.stringify(eventosEditables.map(e => ({
-                minuto: e.minuto,
-                tipo: e.tipo,
-                dni: e.dni
-            }))));
+            formData.append("golesPropio", document.getElementById("aprGolesPropio").value);
+            formData.append("golesRival", document.getElementById("aprGolesRival").value);
+            formData.append("incidencias", document.getElementById("aprIncidencias").value.trim());
+            formData.append("eventos", JSON.stringify(eventosEditables));
 
             const res = await fetch(URL_BACKEND, { method: "POST", body: formData });
             const data = JSON.parse(await res.text());
             if (!data.exito) throw new Error(data.error || "Error al aprobar.");
-
-            mostrarAlerta(data.mensaje);
-            cerrarDetalleEncuentro();
-            cargarModuloEncuentros(contenedorEncuentrosActual);
-        } catch (e) {
-            mostrarAlerta(e.message);
-            btn.innerText = "✅ Aprobar Partido Oficialmente";
-            btn.disabled = false;
-        }
+            mostrarAlerta(data.mensaje); cerrarDetalleEncuentro(); cargarModuloEncuentros(contenedorEncuentrosActual);
+        } catch (e) { mostrarAlerta(e.message); btn.innerText = "✅ Aprobar Partido Oficialmente"; btn.disabled = false; }
     }
 
     // ==========================================
@@ -1262,65 +894,32 @@
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerAsistenciaEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
-            if (!data.asistencias || data.asistencias.length === 0) {
-                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Sin datos de asistencia.</p>";
-                return;
-            }
+            if (!data.asistencias || data.asistencias.length === 0) { contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Sin datos de asistencia.</p>"; return; }
             let html = `<table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-200"><th class="p-3 font-bold">Jugador</th><th class="p-3 font-bold text-center w-16">Clases</th><th class="p-3 font-bold text-center w-20">% Asist.</th></tr></thead><tbody>`;
             data.asistencias.forEach(a => {
                 const colorBarra = a.porcentaje >= 80 ? 'bg-green-500' : (a.porcentaje >= 50 ? 'bg-amber-500' : 'bg-red-500');
                 const colorTexto = a.totalAsistencias === 0 ? 'text-slate-400' : 'text-slate-700';
-                html += `
-                <tr class="border-b border-slate-100 hover:bg-slate-50 transition">
-                    <td class="p-3 flex items-center gap-3"><img src="${a.fotoUrl}" class="w-8 h-8 rounded-full object-cover bg-slate-200 border border-slate-200"><span class="text-xs font-bold text-slate-800">${a.nombre}</span></td>
-                    <td class="p-3 text-center text-[11px] font-bold ${colorTexto}">${a.presentes}/${a.totalAsistencias}</td>
-                    <td class="p-3 text-center">
-                        <span class="text-[11px] font-black ${colorTexto} inline-block mb-1">${a.totalAsistencias === 0 ? 'N/A' : a.porcentaje + '%'}</span>
-                        <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${colorBarra} h-1.5 rounded-full" style="width: ${a.totalAsistencias === 0 ? 0 : a.porcentaje}%"></div></div>
-                    </td>
-                </tr>`;
+                html += `<tr class="border-b border-slate-100 hover:bg-slate-50 transition"><td class="p-3 flex items-center gap-3"><img src="${a.fotoUrl}" class="w-8 h-8 rounded-full object-cover bg-slate-200 border border-slate-200"><span class="text-xs font-bold text-slate-800">${a.nombre}</span></td><td class="p-3 text-center text-[11px] font-bold ${colorTexto}">${a.presentes}/${a.totalAsistencias}</td><td class="p-3 text-center"><span class="text-[11px] font-black ${colorTexto} inline-block mb-1">${a.totalAsistencias === 0 ? 'N/A' : a.porcentaje + '%'}</span><div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${colorBarra} h-1.5 rounded-full" style="width: ${a.totalAsistencias === 0 ? 0 : a.porcentaje}%"></div></div></td></tr>`;
             });
-            html += `</tbody></table>`;
-            contenedor.innerHTML = html;
-        } catch (e) {
-            contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>";
-        }
+            contenedor.innerHTML = html + `</tbody></table>`;
+        } catch (e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
     }
 
     async function cargarListaAsistencia() {
         const contenedor = document.getElementById("listaAsistenciaTomar");
         contenedor.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando jugadores...</p>";
         document.getElementById("fechaAsistencia").valueAsDate = new Date();
-
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
-            if (!data.jugadores || data.jugadores.length === 0) {
-                contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Primero debe agregar jugadores en Seleccionados.</p>";
-                return;
-            }
-            let html = "";
-            data.jugadores.forEach(j => {
-                html += `
+            if (!data.jugadores || data.jugadores.length === 0) { contenedor.innerHTML = "<p class='text-center text-slate-500 my-10'>Primero debe agregar jugadores en Seleccionados.</p>"; return; }
+            contenedor.innerHTML = data.jugadores.map(j => `
                 <div class="flex items-center justify-between p-3 border-b border-slate-100" data-dni="${j.dni}">
-                    <div class="flex items-center gap-3">
-                        <img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover">
-                        <div>
-                            <p class="font-bold text-slate-800 text-sm leading-tight">${j.nombre}</p>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${j.grado}</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="marcarAsistencia(this, 'Presente')" class="btn-asist bg-green-500 text-white font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-100 transition">P</button>
-                        <button onclick="marcarAsistencia(this, 'Falta')" class="btn-asist bg-slate-200 text-slate-500 font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-50 transition hover:opacity-100">F</button>
-                    </div>
+                    <div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover"><div><p class="font-bold text-slate-800 text-sm leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${j.grado}</p></div></div>
+                    <div class="flex gap-2"><button onclick="marcarAsistencia(this, 'Presente')" class="btn-asist bg-green-500 text-white font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-100 transition">P</button><button onclick="marcarAsistencia(this, 'Falta')" class="btn-asist bg-slate-200 text-slate-500 font-bold px-3 py-1 rounded shadow-sm text-xs w-12 opacity-50 transition hover:opacity-100">F</button></div>
                     <input type="hidden" class="estado-asistencia-input" value="Presente">
-                </div>`;
-            });
-            contenedor.innerHTML = html;
-        } catch (e) {
-            contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>";
-        }
+                </div>`).join("");
+        } catch (e) { contenedor.innerHTML = "<p class='text-center text-red-500'>Error de conexión.</p>"; }
     }
 
     function marcarAsistencia(btnClick, estado) {
@@ -1329,148 +928,66 @@
         btns[0].classList.replace('bg-green-500', 'bg-slate-200'); btns[0].classList.replace('text-white', 'text-slate-500'); btns[0].classList.replace('opacity-100', 'opacity-50');
         btns[1].classList.replace('bg-red-500', 'bg-slate-200'); btns[1].classList.replace('text-white', 'text-slate-500'); btns[1].classList.replace('opacity-100', 'opacity-50');
         btnClick.classList.replace('bg-slate-200', estado === 'Presente' ? 'bg-green-500' : 'bg-red-500');
-        btnClick.classList.replace('text-slate-500', 'text-white');
-        btnClick.classList.replace('opacity-50', 'opacity-100');
+        btnClick.classList.replace('text-slate-500', 'text-white'); btnClick.classList.replace('opacity-50', 'opacity-100');
         cFila.querySelector('.estado-asistencia-input').value = estado;
     }
 
     function guardarAsistenciaBD() {
-        const fecha = document.getElementById("fechaAsistencia").value;
-        if (!fecha) return mostrarAlerta("Seleccione una fecha.");
-        let arr = [];
-        document.querySelectorAll('#listaAsistenciaTomar > div[data-dni]').forEach(fila => {
-            arr.push({ dni: fila.getAttribute('data-dni'), estado: fila.querySelector('.estado-asistencia-input').value });
-        });
+        const fecha = document.getElementById("fechaAsistencia").value; if (!fecha) return mostrarAlerta("Seleccione una fecha.");
+        let arr = []; document.querySelectorAll('#listaAsistenciaTomar > div[data-dni]').forEach(fila => arr.push({ dni: fila.getAttribute('data-dni'), estado: fila.querySelector('.estado-asistencia-input').value }));
         if (arr.length === 0) return mostrarAlerta("No hay jugadores para registrar asistencia.");
-
-        const btn = document.getElementById("btnGuardarAsist");
-        btn.innerText = "Guardando...";
-        btn.disabled = true;
-
+        const btn = document.getElementById("btnGuardarAsist"); btn.innerText = "Guardando..."; btn.disabled = true;
         const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(data) {
-            mostrarAlerta("Asistencia guardada correctamente.");
-            btn.innerText = "💾 Guardar Asistencia de Hoy";
-            btn.disabled = false;
-            cerrarModuloProfe('profeAsistenciaView');
-            delete window[callbackName];
-        };
-
-        const scriptGuardar = document.createElement('script');
-        scriptGuardar.src = `${URL_BACKEND}?action=guardarAsistencia&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&fecha=${encodeURIComponent(fecha)}&datos=${encodeURIComponent(JSON.stringify(arr))}&callback=${callbackName}`;
-        document.body.appendChild(scriptGuardar);
+        window[callbackName] = function() { mostrarAlerta("Asistencia guardada correctamente."); btn.innerText = "💾 Guardar Asistencia de Hoy"; btn.disabled = false; cerrarModuloProfe('profeAsistenciaView'); delete window[callbackName]; };
+        const s = document.createElement('script'); s.src = `${URL_BACKEND}?action=guardarAsistencia&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&fecha=${encodeURIComponent(fecha)}&datos=${encodeURIComponent(JSON.stringify(arr))}&callback=${callbackName}`; document.body.appendChild(s);
     }
 
     async function iniciarProgramacionPartido() {
-        document.getElementById("profeEncuentrosView").classList.add("hidden");
-        document.getElementById("programarPartidoView").classList.remove("hidden");
-        document.getElementById("formProgramacion").classList.add("hidden");
-        document.getElementById("pantallaExito").classList.add("hidden");
-        document.getElementById("loaderProgramar").classList.remove("hidden");
-
-        estadoGlobal.dnisConvocados = [];
-        document.getElementById("contadorConvocados").innerText = "0";
+        document.getElementById("profeEncuentrosView").classList.add("hidden"); document.getElementById("programarPartidoView").classList.remove("hidden");
+        document.getElementById("formProgramacion").classList.add("hidden"); document.getElementById("pantallaExito").classList.add("hidden"); document.getElementById("loaderProgramar").classList.remove("hidden");
+        estadoGlobal.dnisConvocados = []; document.getElementById("contadorConvocados").innerText = "0";
         ['txtRival', 'txtFecha', 'txtFechaConvocatoria', 'txtLugar', 'txtDireccion'].forEach(id => document.getElementById(id).value = "");
-
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerDatosProgramacion&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-
-            let options = "<option value=''>Seleccione Campeonato...</option>";
-            (data.campeonatos || []).forEach(c => options += `<option value="${c.id}">${c.nombre}</option>`);
-            document.getElementById("selCampeonato").innerHTML = options;
-
-            let htmlJugadores = "";
-            (data.plantilla || []).forEach(j => {
-                htmlJugadores += `
-                <label class="flex items-center p-2 border rounded bg-white shadow-sm cursor-pointer hover:bg-slate-50 mb-1">
-                    <input type="checkbox" value="${j.dni}" class="check-convocado w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)">
-                    <div>
-                        <div class="font-bold text-slate-700">${j.nombre}</div>
-                        <div class="text-xs text-slate-400">Camiseta: ${j.camiseta}</div>
-                    </div>
-                </label>`;
-            });
-            document.getElementById("listaJugadoresConvocar").innerHTML = htmlJugadores || "<p class='text-red-500 text-sm'>No hay jugadores en la Selección Oficial.</p>";
-
-            document.getElementById("loaderProgramar").classList.add("hidden");
-            document.getElementById("formProgramacion").classList.remove("hidden");
-        } catch (error) {
-            mostrarAlerta("Error: " + error.message);
-        }
+            document.getElementById("selCampeonato").innerHTML = "<option value=''>Seleccione Campeonato...</option>" + (data.campeonatos || []).map(c => `<option value="${c.id}">${c.nombre}</option>`).join("");
+            document.getElementById("listaJugadoresConvocar").innerHTML = (data.plantilla || []).map(j => `<label class="flex items-center p-2 border rounded bg-white shadow-sm cursor-pointer hover:bg-slate-50 mb-1"><input type="checkbox" value="${j.dni}" class="check-convocado w-5 h-5 text-green-600 rounded border-gray-300 mr-3" onchange="toggleConvocado(this)"><div><div class="font-bold text-slate-700">${j.nombre}</div><div class="text-xs text-slate-400">Camiseta: ${j.camiseta}</div></div></label>`).join("") || "<p class='text-red-500 text-sm'>No hay jugadores en la Selección Oficial.</p>";
+            document.getElementById("loaderProgramar").classList.add("hidden"); document.getElementById("formProgramacion").classList.remove("hidden");
+        } catch (error) { mostrarAlerta("Error: " + error.message); }
     }
 
     function calcularConvocatoria() {
         const fStr = document.getElementById("txtFecha").value;
-        if (fStr) {
-            let f = new Date(fStr);
-            f.setMinutes(f.getMinutes() - 30);
-            const p = (n) => n < 10 ? '0' + n : n;
-            document.getElementById("txtFechaConvocatoria").value = `${f.getFullYear()}-${p(f.getMonth() + 1)}-${p(f.getDate())}T${p(f.getHours())}:${p(f.getMinutes())}`;
-        }
+        if (fStr) { let f = new Date(fStr); f.setMinutes(f.getMinutes() - 30); const p = (n) => n < 10 ? '0' + n : n; document.getElementById("txtFechaConvocatoria").value = `${f.getFullYear()}-${p(f.getMonth() + 1)}-${p(f.getDate())}T${p(f.getHours())}:${p(f.getMinutes())}`; }
     }
-
     function toggleConvocado(chk) {
-        if (chk.checked) estadoGlobal.dnisConvocados.push(chk.value);
-        else estadoGlobal.dnisConvocados = estadoGlobal.dnisConvocados.filter(dni => dni !== chk.value);
+        if (chk.checked) estadoGlobal.dnisConvocados.push(chk.value); else estadoGlobal.dnisConvocados = estadoGlobal.dnisConvocados.filter(dni => dni !== chk.value);
         document.getElementById("contadorConvocados").innerText = estadoGlobal.dnisConvocados.length;
     }
 
     function guardarEncuentro() {
-        const idCamp = document.getElementById("selCampeonato").value;
-        const rival = document.getElementById("txtRival").value.trim();
-        const fecha = document.getElementById("txtFecha").value;
-        const fechaConv = document.getElementById("txtFechaConvocatoria").value;
-        const lugar = document.getElementById("txtLugar").value.trim();
-        const dir = document.getElementById("txtDireccion").value.trim();
-
-        if (!idCamp || !rival || !fecha || !fechaConv || !lugar || estadoGlobal.dnisConvocados.length === 0) {
-            return mostrarAlerta("Por favor complete todos los campos y seleccione al menos 1 jugador.");
-        }
-
-        const btn = document.getElementById("btnGuardarEncuentro");
-        btn.innerText = "Programando...";
-        btn.disabled = true;
-
+        const idCamp = document.getElementById("selCampeonato").value, rival = document.getElementById("txtRival").value.trim(), fecha = document.getElementById("txtFecha").value, fechaConv = document.getElementById("txtFechaConvocatoria").value, lugar = document.getElementById("txtLugar").value.trim(), dir = document.getElementById("txtDireccion").value.trim();
+        if (!idCamp || !rival || !fecha || !fechaConv || !lugar || estadoGlobal.dnisConvocados.length === 0) return mostrarAlerta("Por favor complete todos los campos y seleccione al menos 1 jugador.");
+        const btn = document.getElementById("btnGuardarEncuentro"); btn.innerText = "Programando..."; btn.disabled = true;
         const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
         window[callbackName] = function(dataGuardar) {
             if (dataGuardar.exito) {
-                document.getElementById("formProgramacion").classList.add("hidden");
-                document.getElementById("pantallaExito").classList.remove("hidden");
+                document.getElementById("formProgramacion").classList.add("hidden"); document.getElementById("pantallaExito").classList.remove("hidden");
                 document.getElementById("linkGenerado").value = `${URL_GITHUB}?token=${dataGuardar.token}`;
-
-                let nombres = [];
-                document.querySelectorAll('.check-convocado:checked').forEach(chk => {
-                    nombres.push(chk.nextElementSibling.querySelector('.font-bold').innerText);
-                });
+                let nombres = []; document.querySelectorAll('.check-convocado:checked').forEach(chk => nombres.push(chk.nextElementSibling.querySelector('.font-bold').innerText));
                 const fd = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                let msg = `⚽ *CONVOCATORIA OFICIAL* ⚽\n\n*Rival:* ${rival}\n*Día y Hora:* ${fd(fecha)}\n*Hora de Citación:* ${fd(fechaConv)}\n*Lugar:* ${lugar}\n*Ref:* ${dir}\n\n*Jugadores Convocados:*\n`;
-                nombres.forEach(n => msg += `✅ ${n}\n`);
-                msg += `\n*Necesitamos apoyo:* ¿Algún padre voluntario para llevar las estadísticas en la Mesa de Control? Responda a este mensaje para enviarle el link privado.`;
-
+                let msg = `⚽ *CONVOCATORIA OFICIAL* ⚽\n\n*Rival:* ${rival}\n*Día y Hora:* ${fd(fecha)}\n*Hora de Citación:* ${fd(fechaConv)}\n*Lugar:* ${lugar}\n*Ref:* ${dir}\n\n*Jugadores Convocados:*\n` + nombres.map(n => `✅ ${n}\n`).join("") + `\n*Necesitamos apoyo:* ¿Algún padre voluntario para llevar las estadísticas en la Mesa de Control? Responda a este mensaje para enviarle el link privado.`;
                 document.getElementById("btnWhatsAppGrupo").innerHTML = `<a href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-3 rounded-lg shadow-md hover:bg-green-600 transition">Enviar al Grupo WhatsApp</a>`;
-            } else {
-                mostrarAlerta("Error al programar el partido.");
-            }
-            btn.innerText = "💾 Programar y Generar Link";
-            btn.disabled = false;
-            delete window[callbackName];
+            } else mostrarAlerta("Error al programar el partido.");
+            btn.innerText = "💾 Programar y Generar Link"; btn.disabled = false; delete window[callbackName];
         };
-
-        const scriptGuardar = document.createElement('script');
-        scriptGuardar.src = `${URL_BACKEND}?action=guardarEncuentro&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idCampeonato=${encodeURIComponent(idCamp)}&rival=${encodeURIComponent(rival)}&fechaPartido=${encodeURIComponent(fecha)}&fechaConvocatoria=${encodeURIComponent(fechaConv)}&lugar=${encodeURIComponent(lugar)}&direccion=${encodeURIComponent(dir)}&dnisConvocados=${encodeURIComponent(JSON.stringify(estadoGlobal.dnisConvocados))}&callback=${callbackName}`;
-        document.body.appendChild(scriptGuardar);
+        const s = document.createElement('script'); s.src = `${URL_BACKEND}?action=guardarEncuentro&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idCampeonato=${encodeURIComponent(idCamp)}&rival=${encodeURIComponent(rival)}&fechaPartido=${encodeURIComponent(fecha)}&fechaConvocatoria=${encodeURIComponent(fechaConv)}&lugar=${encodeURIComponent(lugar)}&direccion=${encodeURIComponent(dir)}&dnisConvocados=${encodeURIComponent(JSON.stringify(estadoGlobal.dnisConvocados))}&callback=${callbackName}`; document.body.appendChild(s);
     }
 
-    function copiarLink() {
-        const input = document.getElementById("linkGenerado");
-        input.select();
-        document.execCommand("copy");
-        mostrarAlerta("Enlace copiado al portapapeles.");
-    }
+    function copiarLink() { const input = document.getElementById("linkGenerado"); input.select(); document.execCommand("copy"); mostrarAlerta("Enlace copiado al portapapeles."); }
 </script>
 
-<!-- ======================================================= -->
+    <!-- ======================================================= -->
 <!-- MODALES GLOBALES -->
 <!-- ======================================================= -->
 
@@ -1693,9 +1210,7 @@
         <button id="btnCargar" onclick="iniciarSesion()" class="bg-slate-800 text-white w-full py-4 rounded-xl text-lg font-bold hover:bg-slate-900 transition shadow-lg">Ingresar al Panel</button>
     </div>
 
-    <!-- ======================================================= -->
     <!-- PANEL COORDINADOR -->
-    <!-- ======================================================= -->
     <div id="coordinadorMainView" class="hidden">
         <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
             <h2 class="text-2xl font-black">Gerencia Deportiva</h2>
@@ -1727,4 +1242,219 @@
                 </button>
                 <button onclick="abrirModuloCoordinador('moduloJugadores')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">🏃‍♂️</span><span class="text-xs font-bold text-slate-700">Jugadores</span></button>
                 <button onclick="abrirModuloCoordinador('moduloEncuentros')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">⚽</span><span class="text-xs font-bold text-slate-700">Encuentros</span></button>
-                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border border-slate-200 rounded-2xl p-4
+                <button onclick="abrirModuloCoordinador('moduloAsistencia')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">📋</span><span class="text-xs font-bold text-slate-700">Asistencia</span></button>
+                <button onclick="abrirModuloCoordinador('moduloDT')" class="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center shadow-sm hover:bg-slate-50 transition"><span class="text-3xl mb-2">⚙️</span><span class="text-xs font-bold text-slate-700">Cambiar DT</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL PROFESOR / DT -->
+    <div id="profesorMainView" class="hidden">
+        <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
+            <h2 class="text-2xl font-black tracking-tight">Comando Técnico</h2>
+            <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Panel de Entrenador</p>
+        </div>
+        <div class="px-4 mb-4"><h3 class="font-bold text-slate-800 text-lg">Mis Equipos a Cargo</h3></div>
+        <div id="contenedorEquiposProfesor" class="px-4"></div>
+    </div>
+
+    <div id="dashboardProfesorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
+        <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
+            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver
+            </button>
+            <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
+            <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
+        </div>
+        <div class="p-4 mt-2">
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="abrirModuloProfe('profeCampeonatosView')" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl p-5 flex items-center justify-between shadow-md active:scale-[0.98] transition">
+                    <div class="text-left"><span class="text-[10px] font-bold uppercase tracking-wider opacity-75">Gestionar Torneos</span><h3 class="text-xl font-black">Campeonatos</h3></div>
+                    <span class="text-4xl">🏆</span>
+                </button>
+                <button onclick="abrirModuloProfe('profeRosterView')" class="bg-blue-50 border border-blue-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3">👥</span><span class="text-sm font-bold text-blue-900 leading-tight">Seleccionados</span>
+                </button>
+                <button onclick="abrirModuloProfe('profeAsistenciaView')" class="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3">✅</span><span class="text-sm font-bold text-amber-900 leading-tight">Tomar<br>Asistencia</span>
+                </button>
+                <button onclick="abrirModuloProfe('profeEncuentrosView')" class="bg-green-50 border border-green-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3">⚽</span><span class="text-sm font-bold text-green-900 leading-tight">Partidos &<br>Convocatoria</span>
+                </button>
+                <button onclick="abrirModuloProfe('profeEstadisticasView')" class="bg-purple-50 border border-purple-200 rounded-2xl p-6 flex flex-col items-center shadow-sm active:scale-95 transition text-center">
+                    <span class="text-4xl mb-3">📊</span><span class="text-sm font-bold text-purple-900 leading-tight">Ver<br>Estadísticas</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MÓDULOS COORDINADOR -->
+    <div id="moduloJugadores" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏃‍♂️</span> Jugadores Oficiales</h2>
+            <button onclick="cerrarModuloCoordinador('moduloJugadores')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4"><div id="listaJugadoresModulo" class="grid grid-cols-2 gap-3"></div></div>
+    </div>
+
+    <div id="moduloDT" class="hidden absolute top-0 left-0 w-full bg-white min-h-screen z-20">
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚙️</span> Cambiar Entrenador</h2>
+            <button onclick="cerrarModuloCoordinador('moduloDT')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-5 mt-4">
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-[11px] font-bold text-slate-500 uppercase">Nuevo Entrenador (DT)</label>
+                <button onclick="abrirModalNuevoDT()" class="bg-blue-100 text-blue-700 text-[10px] font-bold px-3 py-1 rounded-lg hover:bg-blue-200 transition shrink-0 shadow-sm border border-blue-200">+ Registrar DT</button>
+            </div>
+            <select id="selNuevoDT" class="w-full border-2 border-slate-300 p-3.5 rounded-xl mb-6 bg-slate-50 outline-none focus:border-blue-500 font-bold text-slate-700"></select>
+            <button id="btnGuardarDT" onclick="guardarNuevoDT()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition">💾 Guardar Cambios</button>
+        </div>
+    </div>
+
+    <div id="moduloDashboardCampeonato" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Dashboard Campeonato</h2>
+            <button onclick="cerrarModuloCoordinador('moduloDashboardCampeonato')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4"><div id="contenidoDashboardCoord"></div></div>
+    </div>
+
+    <div id="moduloEncuentros" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Historial Encuentros</h2>
+            <button onclick="cerrarModuloCoordinador('moduloEncuentros')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4"><div id="listaEncuentrosModulo"></div></div>
+    </div>
+
+    <div id="moduloAsistencia" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-slate-800 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📋</span> Asistencia</h2>
+            <button onclick="cerrarModuloCoordinador('moduloAsistencia')" class="text-slate-300 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4"><div id="listaAsistenciaModulo" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"></div></div>
+    </div>
+
+    <!-- MÓDULOS DT -->
+    <div id="profeCampeonatosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-indigo-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">🏆</span> Campeonatos</h2>
+            <button onclick="cerrarModuloProfe('profeCampeonatosView')" class="text-indigo-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <button onclick="abrirModalInscribirCampeonato()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 transition mb-4 flex justify-center items-center gap-2">
+                <span class="text-xl">+</span> Inscribir / Crear Campeonato
+            </button>
+            <p class="text-[11px] text-slate-500 text-center mb-3">Toca un campeonato para actualizar reglas o el puesto alcanzado.</p>
+            <div id="listaCampeonatosProfe"></div>
+        </div>
+    </div>
+
+    <div id="profeRosterView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-blue-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">👥</span> Seleccionados</h2>
+            <button onclick="cerrarModuloProfe('profeRosterView')" class="text-blue-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <button onclick="abrirModalNuevoJugador()" class="bg-blue-600 text-white text-xs font-bold py-3 px-3 rounded-xl shadow hover:bg-blue-700 transition flex items-center justify-center gap-1"><span>➕</span> Nuevo Jugador</button>
+                <button onclick="abrirModalAgregarExistente()" class="bg-white text-blue-700 border border-blue-200 text-xs font-bold py-3 px-3 rounded-xl shadow-sm hover:bg-blue-50 transition flex items-center justify-center gap-1"><span>📥</span> Traer de la Base</button>
+            </div>
+            <p class="text-[11px] text-slate-500 font-medium mb-3 text-center">Toca la ficha de un jugador para editar su foto o camiseta.</p>
+            <div id="gridSeleccionadosProfe" class="grid grid-cols-2 gap-3 pb-10"></div>
+        </div>
+    </div>
+
+    <div id="profeAsistenciaView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-amber-500 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">✅</span> Tomar Asistencia</h2>
+            <button onclick="cerrarModuloProfe('profeAsistenciaView')" class="text-amber-100 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <label class="block text-[11px] font-bold text-amber-700 uppercase mb-2">Fecha del Entrenamiento</label>
+            <input type="date" id="fechaAsistencia" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 bg-white outline-none focus:border-amber-500 font-bold text-slate-700 shadow-sm">
+            <div id="listaAsistenciaTomar" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6 max-h-[50vh] overflow-y-auto"></div>
+            <button id="btnGuardarAsist" onclick="guardarAsistenciaBD()" class="w-full bg-amber-500 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-amber-600 transition">💾 Guardar Asistencia de Hoy</button>
+        </div>
+    </div>
+
+    <div id="profeEncuentrosView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-green-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">⚽</span> Encuentros</h2>
+            <button onclick="cerrarModuloProfe('profeEncuentrosView')" class="text-green-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4">
+            <button onclick="iniciarProgramacionPartido()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 transition mb-6 flex justify-center items-center">
+                <span class="text-xl mr-2">+</span> Programar Nuevo Partido
+            </button>
+            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider mb-3">Historial de Partidos (Toca para ver detalle)</p>
+            <div id="listaEncuentrosProfe"></div>
+        </div>
+    </div>
+
+    <div id="profeEstadisticasView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-20">
+        <div class="bg-purple-600 text-white p-4 shadow-md sticky top-0 flex justify-between items-center z-30">
+            <h2 class="font-bold text-lg flex items-center"><span class="mr-2 text-xl">📊</span> Rendimiento</h2>
+            <button onclick="cerrarModuloProfe('profeEstadisticasView')" class="text-purple-200 font-bold hover:text-white">✕ Cerrar</button>
+        </div>
+        <div class="p-4 space-y-6 pb-12">
+            <div id="contenidoDashboardProfe"></div>
+            <div>
+                <h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Asistencia a Entrenamientos</h4>
+                <div id="listaEstadisticasProfe" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="programarPartidoView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-30">
+        <div class="bg-slate-800 text-white p-4 flex justify-between items-center mb-4 shadow-md sticky top-0">
+            <h2 class="font-bold text-lg">Nuevo Partido</h2>
+            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden');" class="text-slate-300 font-bold hover:text-white flex items-center">✕ <span class="ml-1 text-sm">Cancelar</span></button>
+        </div>
+        <div id="loaderProgramar" class="text-center p-6 text-slate-500 animate-pulse">Cargando datos...</div>
+        <div id="formProgramacion" class="hidden px-4 max-w-md mx-auto pb-10">
+            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Campeonato</label>
+            <select id="selCampeonato" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 bg-white text-sm focus:border-green-500 outline-none"></select>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Rival</label>
+            <input type="text" id="txtRival" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 text-sm focus:border-green-500 outline-none">
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Día y Hora</label><input type="datetime-local" id="txtFecha" onchange="calcularConvocatoria()" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-xs focus:border-green-500 outline-none"></div>
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Citación</label><input type="datetime-local" id="txtFechaConvocatoria" class="w-full border-2 border-amber-200 bg-amber-50 p-2.5 rounded-xl text-xs focus:border-green-500 outline-none"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Lugar</label><input type="text" id="txtLugar" class="w-full border-2 border-slate-200 p-3 rounded-xl text-sm focus:border-green-500 outline-none"></div>
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Ref.</label><input type="text" id="txtDireccion" class="w-full border-2 border-slate-200 p-3 rounded-xl text-sm focus:border-green-500 outline-none"></div>
+            </div>
+            <div class="flex justify-between items-end mb-2 mt-4">
+                <label class="block text-[11px] font-bold text-slate-800 uppercase">Convocar Jugadores</label>
+                <span class="text-[10px] bg-green-100 text-green-800 px-2 py-1 rounded-lg font-bold"><span id="contadorConvocados">0</span> Sel.</span>
+            </div>
+            <div id="listaJugadoresConvocar" class="grid grid-cols-1 max-h-56 overflow-y-auto bg-white p-2 rounded-xl mb-6 border border-slate-200 shadow-inner"></div>
+            <button id="btnGuardarEncuentro" onclick="guardarEncuentro()" class="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-700 transition">💾 Programar y Generar Link</button>
+        </div>
+
+        <div id="pantallaExito" class="hidden px-4 py-2 max-w-md mx-auto">
+            <div class="text-center mb-5 mt-4">
+                <div class="inline-flex bg-green-100 p-3 rounded-full mb-3"><svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg></div>
+                <h3 class="font-black text-xl text-slate-800 tracking-tight">Encuentro Registrado</h3>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 mb-5 shadow-sm">
+                <h4 class="font-bold text-slate-800 text-sm mb-1">📢 Convocatoria General</h4>
+                <div id="btnWhatsAppGrupo"></div>
+            </div>
+            <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 mb-6 shadow-sm">
+                <h4 class="font-bold text-blue-900 text-sm mb-1">🔐 Link de Control (Privado)</h4>
+                <div class="flex mt-2">
+                    <input type="text" id="linkGenerado" readonly class="w-full border border-blue-300 p-2 rounded-l-xl text-[10px] outline-none bg-white text-blue-900 font-mono">
+                    <button onclick="copiarLink()" class="bg-blue-600 text-white px-4 rounded-r-xl font-bold text-xs hover:bg-blue-700 transition">Copiar</button>
+                </div>
+            </div>
+            <button onclick="document.getElementById('programarPartidoView').classList.add('hidden'); document.getElementById('profeEncuentrosView').classList.remove('hidden'); cargarModuloEncuentros('listaEncuentrosProfe');" class="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md">Finalizar y Volver</button>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>
