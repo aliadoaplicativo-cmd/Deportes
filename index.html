@@ -10,6 +10,7 @@
 
 <script>
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
+    const URL_WEB_APP = "https://aliadoaplicativo-cmd.github.io/Deportes/";
     const URL_GITHUB = "https://aliadoaplicativo-cmd.github.io/Deportes/PadreView.html";
 
     let estadoGlobal = {
@@ -33,7 +34,7 @@
     let eventosEditables = [];
 
     // ==========================================
-    // ALERTAS MODERNAS
+    // ALERTAS MODERNAS Y UTILIDADES
     // ==========================================
     function mostrarAlerta(mensaje) {
         document.getElementById('alertaMensaje').innerText = mensaje || "Aviso del sistema.";
@@ -41,6 +42,10 @@
     }
     function cerrarAlerta() {
         document.getElementById('alertaModern').classList.replace('flex', 'hidden');
+    }
+    function copiarTextoDirecto(texto) {
+        navigator.clipboard.writeText(texto).then(() => mostrarAlerta("Enlace copiado al portapapeles."))
+            .catch(() => mostrarAlerta("No se pudo copiar automáticamente."));
     }
 
     // ==========================================
@@ -76,12 +81,19 @@
     }
 
     // ==========================================
-    // 0. FLUJOS DEL SUPERADMIN
+    // 0. FLUJOS DEL SUPERADMIN (DIRECTORIO + WHATSAPP)
     // ==========================================
+    function generarLinkWspCredenciales(nombreColegio, nombreCoord, dniCoord, telCoord, idColegio) {
+        const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(idColegio)}`;
+        const msg = `🏆 *BIENVENIDO A LA PLATAFORMA DE FÚTBOL ESCOLAR* 🏆\n\nHola *${nombreCoord}*,\nYa se encuentra activo el acceso para *${nombreColegio}*.\n\n🌐 *Web de ingreso:* ${urlColegio}\n🔑 *Usuario (DNI):* ${dniCoord}\n👔 *Rol:* Coordinador Deportivo\n\nCualquier consulta estamos a su disposición.`;
+        const base = telCoord ? `https://wa.me/${telCoord}` : `https://wa.me/`;
+        return `${base}?text=${encodeURIComponent(msg)}`;
+    }
+
     async function cargarMenuSuperAdmin() {
         document.getElementById("superAdminMainView").classList.remove("hidden");
         const cont = document.getElementById("contenedorColegiosSA");
-        cont.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando colegios...</p>";
+        cont.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando directorio de colegios...</p>";
 
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerPanelSuperAdmin`);
@@ -95,12 +107,15 @@
 
             cont.innerHTML = colegios.map(c => {
                 const activo = c.estado === 'Activo';
+                const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(c.idColegio)}`;
+                const linkWsp = generarLinkWspCredenciales(c.nombre, c.coordinador, c.dniCoord, c.telCoord, c.idColegio);
+
                 const badge = activo
                     ? '<span class="bg-green-100 text-green-700 text-[10px] font-black px-2.5 py-1 rounded-full">ACTIVO</span>'
                     : '<span class="bg-red-100 text-red-700 text-[10px] font-black px-2.5 py-1 rounded-full">SUSPENDIDO</span>';
                 const btnToggle = activo
-                    ? `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Inactivo')" class="bg-red-50 text-red-600 border border-red-200 text-xs font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition">⛔ Suspender</button>`
-                    : `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Activo')" class="bg-green-50 text-green-700 border border-green-200 text-xs font-bold px-3 py-2 rounded-xl hover:bg-green-100 transition">✅ Reactivar</button>`;
+                    ? `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Inactivo')" class="bg-red-50 text-red-600 border border-red-200 text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition">⛔ Suspender</button>`
+                    : `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Activo')" class="bg-green-50 text-green-700 border border-green-200 text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-green-100 transition">✅ Reactivar</button>`;
 
                 return `
                 <div class="bg-white rounded-2xl shadow-sm border-l-8 ${activo ? 'border-green-600' : 'border-red-500'} p-4 mb-3">
@@ -111,8 +126,15 @@
                         </div>
                         ${badge}
                     </div>
-                    <p class="text-xs text-slate-600 mb-3">👔 Coord: <b>${c.coordinador}</b> ${c.dniCoord ? `(DNI: ${c.dniCoord})` : ''}</p>
-                    <div class="flex justify-end">${btnToggle}</div>
+                    <p class="text-xs text-slate-600 mb-2">👔 Coord: <b>${c.coordinador}</b> ${c.dniCoord ? `(DNI: ${c.dniCoord})` : ''}</p>
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-2 mb-3 flex items-center justify-between gap-2">
+                        <a href="${urlColegio}" target="_blank" class="text-[10px] text-blue-600 font-mono truncate hover:underline">${urlColegio}</a>
+                        <button onclick="copiarTextoDirecto('${urlColegio}')" class="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-1 rounded-lg shrink-0 hover:bg-slate-300">Copiar</button>
+                    </div>
+                    <div class="flex justify-between items-center gap-2">
+                        <a href="${linkWsp}" target="_blank" class="bg-[#25D366] text-white text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-green-600 transition flex items-center gap-1 shadow-sm">💬 Enviar Acceso</a>
+                        ${btnToggle}
+                    </div>
                 </div>`;
             }).join("");
         } catch (e) {
@@ -122,6 +144,8 @@
 
     function abrirModalNuevoColegio() {
         ['saNomColegio', 'saDniCoord', 'saNomCoord', 'saApCoord', 'saTelCoord'].forEach(id => document.getElementById(id).value = "");
+        document.getElementById('saFormCrear').classList.remove('hidden');
+        document.getElementById('saExitoCrear').classList.add('hidden');
         document.getElementById('modalNuevoColegio').classList.replace('hidden', 'flex');
     }
     function cerrarModalNuevoColegio() {
@@ -150,8 +174,15 @@
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
             if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cerrarModalNuevoColegio();
+                const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(data.idColegio)}`;
+                const linkWsp = generarLinkWspCredenciales(data.nombreColegio, data.nombreCoord, data.dniCoord, data.telCoord, data.idColegio);
+
+                document.getElementById('saExitoResumen').innerHTML = `Colegio: <b>${data.nombreColegio}</b><br>Coordinador: <b>${data.nombreCoord}</b><br>Usuario (DNI): <b>${data.dniCoord}</b>`;
+                document.getElementById('saExitoLinkInput').value = urlColegio;
+                document.getElementById('saExitoBtnWsp').href = linkWsp;
+
+                document.getElementById('saFormCrear').classList.add('hidden');
+                document.getElementById('saExitoCrear').classList.remove('hidden');
                 cargarMenuSuperAdmin();
             } else throw new Error(data.error || "Error al crear colegio.");
         } catch (e) { mostrarAlerta(e.message); }
@@ -191,20 +222,16 @@
                 return;
             }
 
-            let html = "";
-            estadoGlobal.seleccionesCoordinador.forEach(sel => {
-                html += `
-                    <button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
-                        <div>
-                            <h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3>
-                            <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${sel.categoria}</p>
-                        </div>
-                        <div class="bg-slate-100 p-3 rounded-full text-slate-400">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                        </div>
-                    </button>`;
-            });
-            document.getElementById("contenedorSelecciones").innerHTML = html;
+            document.getElementById("contenedorSelecciones").innerHTML = estadoGlobal.seleccionesCoordinador.map(sel => `
+                <button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
+                    <div>
+                        <h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3>
+                        <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${sel.categoria}</p>
+                    </div>
+                    <div class="bg-slate-100 p-3 rounded-full text-slate-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                    </div>
+                </button>`).join("");
         } catch (error) {
             document.getElementById("contenedorSelecciones").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`;
         }
@@ -213,10 +240,8 @@
     function abrirDashboardCoordinador(idEquipo) {
         const sel = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === idEquipo);
         estadoGlobal.idEquipoSeleccionado = idEquipo;
-
         document.getElementById("coordinadorMainView").classList.add("hidden");
         document.getElementById("dashboardCoordinadorView").classList.remove("hidden");
-
         document.getElementById("dashCoordNombreEquipo").innerText = sel.nombreEquipo;
         document.getElementById("dashCoordCategoriaEquipo").innerText = sel.categoria;
         document.getElementById("dashCoordNombreDT").innerText = sel.profesor;
@@ -254,9 +279,7 @@
         document.querySelectorAll('.check-categoria').forEach(chk => chk.checked = false);
         document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex');
     }
-    function cerrarModalCrearSeleccion() {
-        document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden'); }
 
     async function guardarNuevaSeleccion() {
         const nombre = document.getElementById("nsNombre").value.trim();
@@ -264,21 +287,16 @@
         document.querySelectorAll('.check-categoria:checked').forEach(chk => cats.push(chk.value));
         if (!nombre || cats.length === 0) return mostrarAlerta("Ingrese el nombre y seleccione al menos una categoría.");
 
-        const btn = document.getElementById("btnGuardarSeleccion");
-        btn.innerText = "Creando..."; btn.disabled = true;
+        const btn = document.getElementById("btnGuardarSeleccion"); btn.innerText = "Creando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append('action', 'crearSeleccion');
-            formData.append('nombre', nombre);
-            formData.append('categorias', cats.join(', '));
-            formData.append('idColegio', estadoGlobal.idColegio);
-
+            formData.append('action', 'crearSeleccion'); formData.append('nombre', nombre);
+            formData.append('categorias', cats.join(', ')); formData.append('idColegio', estadoGlobal.idColegio);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
             if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalCrearSeleccion(); cargarMenuCoordinador(); }
             else throw new Error(data.error || "Error al crear selección.");
-        } catch (e) { mostrarAlerta(e.message); }
-        finally { btn.innerText = "Crear Selección"; btn.disabled = false; }
+        } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "Crear Selección"; btn.disabled = false; }
     }
 
     function abrirModalNuevoDT() {
@@ -288,27 +306,18 @@
     function cerrarModalNuevoDT() { document.getElementById('modalNuevoDT').classList.replace('flex', 'hidden'); }
 
     async function guardarNuevoDTBackend() {
-        const dni = document.getElementById('ndtDni').value.trim();
-        const nom = document.getElementById('ndtNombres').value.trim();
-        const ap = document.getElementById('ndtApellidos').value.trim();
-        const tel = document.getElementById('ndtTelefono').value.trim();
+        const dni = document.getElementById('ndtDni').value.trim(), nom = document.getElementById('ndtNombres').value.trim(), ap = document.getElementById('ndtApellidos').value.trim(), tel = document.getElementById('ndtTelefono').value.trim();
         if (!dni || !nom || !ap) return mostrarAlerta("Complete DNI, Nombres y Apellidos.");
-
-        const btn = document.getElementById('btnGuardarNuevoDTBackend');
-        btn.innerText = "Guardando..."; btn.disabled = true;
+        const btn = document.getElementById('btnGuardarNuevoDTBackend'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append('action', 'registrarNuevoProfesor');
-            formData.append('dni', dni); formData.append('nombres', nom);
-            formData.append('apellidos', ap); formData.append('telefono', tel);
-            formData.append('idColegio', estadoGlobal.idColegio);
-
+            formData.append('action', 'registrarNuevoProfesor'); formData.append('dni', dni); formData.append('nombres', nom);
+            formData.append('apellidos', ap); formData.append('telefono', tel); formData.append('idColegio', estadoGlobal.idColegio);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
             if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoDT(); cargarModuloDT(); }
             else throw new Error(data.error || "Error al registrar DT.");
-        } catch (e) { mostrarAlerta(e.message); }
-        finally { btn.innerText = "Registrar Entrenador"; btn.disabled = false; }
+        } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "Registrar Entrenador"; btn.disabled = false; }
     }
 
     async function cargarModuloDT() {
@@ -325,15 +334,12 @@
         const dniProfesor = document.getElementById("selNuevoDT").value;
         if (!dniProfesor) return mostrarAlerta("Seleccione un profesor de la lista.");
         const btn = document.getElementById("btnGuardarDT"); btn.innerText = "Guardando..."; btn.disabled = true;
-
         const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
         window[callbackName] = function(data) {
             if (data.exito) {
                 const eq = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado);
                 if (eq) eq.profesor = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text;
-                mostrarAlerta("Entrenador asignado con éxito.");
-                cerrarModuloCoordinador('moduloDT');
-                abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado);
+                mostrarAlerta("Entrenador asignado con éxito."); cerrarModuloCoordinador('moduloDT'); abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado);
             } else mostrarAlerta(data.error || "Error al actualizar.");
             btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; delete window[callbackName];
         };
@@ -349,15 +355,7 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
             if (!data.jugadores || data.jugadores.length === 0) { contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Sin jugadores oficiales.</p>"; return; }
-            contenedor.innerHTML = data.jugadores.map(j => `
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
-                    <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span>
-                    <img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100">
-                    <div class="p-3 text-center">
-                        <p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p>
-                        <p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p>
-                    </div>
-                </div>`).join("");
+            contenedor.innerHTML = data.jugadores.map(j => `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p></div></div>`).join("");
         } catch (e) { contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
     }
 
@@ -371,15 +369,8 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerEquipos&dni=${encodeURIComponent(estadoGlobal.dniLogueado)}`);
             const data = await res.json();
             estadoGlobal.equiposProfesor = data.datos || [];
-            if (estadoGlobal.equiposProfesor.length === 0) {
-                document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10'>No tiene equipos asignados aún.</p>";
-                return;
-            }
-            document.getElementById("contenedorEquiposProfesor").innerHTML = estadoGlobal.equiposProfesor.map(eq => `
-                <button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
-                    <div><h3 class="font-black text-2xl uppercase tracking-tight">${eq.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${eq.categoria}</p></div>
-                    <div class="bg-green-50 p-3 rounded-full text-green-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div>
-                </button>`).join("");
+            if (estadoGlobal.equiposProfesor.length === 0) { document.getElementById("contenedorEquiposProfesor").innerHTML = "<p class='text-center text-slate-500 my-10'>No tiene equipos asignados aún.</p>"; return; }
+            document.getElementById("contenedorEquiposProfesor").innerHTML = estadoGlobal.equiposProfesor.map(eq => `<button onclick="abrirDashboardProfesor('${eq.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-green-600 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left"><div><h3 class="font-black text-2xl uppercase tracking-tight">${eq.nombreEquipo}</h3><p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${eq.categoria}</p></div><div class="bg-green-50 p-3 rounded-full text-green-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></div></button>`).join("");
         } catch (error) { document.getElementById("contenedorEquiposProfesor").innerHTML = `<p class='text-center text-red-500'>${error.message}</p>`; }
     }
 
@@ -399,11 +390,8 @@
 
     function abrirModuloProfe(moduloID) {
         document.getElementById("dashboardProfesorView").classList.add("hidden");
-        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView', 'profeEstadisticasView', 'profeCampeonatosView', 'programarPartidoView'].forEach(id => {
-            document.getElementById(id).classList.add("hidden");
-        });
+        ['profeRosterView', 'profeAsistenciaView', 'profeEncuentrosView', 'profeEstadisticasView', 'profeCampeonatosView', 'programarPartidoView'].forEach(id => document.getElementById(id).classList.add("hidden"));
         document.getElementById(moduloID).classList.remove("hidden");
-
         if (moduloID === 'profeRosterView') cargarRosterProfe();
         if (moduloID === 'profeAsistenciaView') cargarListaAsistencia();
         if (moduloID === 'profeEncuentrosView') cargarModuloEncuentros('listaEncuentrosProfe');
@@ -426,15 +414,11 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerDashboardEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-
-            const r = data.resumen;
-            const difGoles = r.gf - r.gc;
-            const difTxt = difGoles > 0 ? `+${difGoles}` : `${difGoles}`;
+            const r = data.resumen, difGoles = r.gf - r.gc, difTxt = difGoles > 0 ? `+${difGoles}` : `${difGoles}`;
             const avisoPend = r.pendientes > 0 ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4 text-xs font-bold flex items-center gap-2"><span>⏳</span> Hay ${r.pendientes} partido(s) pendiente(s) de aprobación del DT.</div>` : "";
             const htmlJug = (!data.jugadores || data.jugadores.length === 0)
                 ? "<p class='text-center text-slate-400 text-xs py-6'>Sin jugadores registrados aún.</p>"
                 : `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200"><th class="p-2.5 font-bold">Jugador</th><th class="p-1.5 text-center font-bold">PJ</th><th class="p-1.5 text-center font-bold text-indigo-600">Min</th><th class="p-1.5 text-center font-bold">⚽</th><th class="p-1.5 text-center font-bold">👟</th><th class="p-1.5 text-center font-bold">🟨</th><th class="p-1.5 text-center font-bold">🟥</th></tr></thead><tbody>${data.jugadores.map(j => `<tr class="border-b border-slate-100 text-xs"><td class="p-2 flex items-center gap-2"><img src="${j.fotoUrl}" class="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0"><span class="font-bold text-slate-800 truncate max-w-[95px]">${j.nombre}</span></td><td class="p-1.5 text-center font-bold text-slate-600">${j.pj}</td><td class="p-1.5 text-center font-black text-indigo-600">${j.minutos || 0}'</td><td class="p-1.5 text-center font-black text-green-600">${j.goles}</td><td class="p-1.5 text-center font-bold text-blue-600">${j.asistencias}</td><td class="p-1.5 text-center font-bold text-amber-500">${j.amarillas}</td><td class="p-1.5 text-center font-bold text-red-500">${j.rojas}</td></tr>`).join("")}</tbody></table></div>`;
-
             cont.innerHTML = `${avisoPend}<div class="grid grid-cols-2 gap-3 mb-3"><div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200"><p class="text-3xl font-black text-slate-800">${r.pj}</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Partidos Jugados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-3xl font-black text-green-600">${r.pg}</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-3xl font-black text-amber-500">${r.pe}</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-3xl font-black text-red-500">${r.pp}</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p></div></div><div class="grid grid-cols-3 gap-2 mb-5"><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gf}</p><p class="text-[9px] font-bold uppercase text-slate-400">Goles a Favor</p></div><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gc}</p><p class="text-[9px] font-bold uppercase text-slate-400">En Contra</p></div><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-blue-600">${difTxt}</p><p class="text-[9px] font-bold uppercase text-slate-400">Diferencia</p></div></div><h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Estadísticas por Jugador</h4>${htmlJug}`;
         } catch (e) { cont.innerHTML = `<p class='text-center text-red-500 text-xs my-6'>Error al cargar métricas: ${e.message}</p>`; }
     }
@@ -450,11 +434,7 @@
             const data = await res.json();
             campeonatosActual = { participaciones: data.participaciones || [], disponibles: data.disponibles || [] };
             if (campeonatosActual.participaciones.length === 0) { cont.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>Esta selección aún no está inscrita en ningún campeonato.</p>"; return; }
-            cont.innerHTML = campeonatosActual.participaciones.map(p => `
-                <div onclick="abrirModalEditarCampeonato('${p.idParticipacion}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition">
-                    <div class="flex justify-between items-start mb-2"><div><h3 class="font-black text-lg text-slate-800 leading-tight">${p.nombreCampeonato}</h3><p class="text-[11px] text-slate-400 font-bold">📅 Inicio: ${p.fechaInicio || 'Por definir'}</p></div><span class="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase">${p.puestoAlcanzado || 'En curso'}</span></div>
-                    <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 text-center"><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.minutosTiempo || '-'} min</p><p class="text-[9px] text-slate-400 font-bold uppercase">x Tiempo</p></div><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.jugadoresCancha || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Jug/Cancha</p></div><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.equiposParticipantes || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Equipos</p></div></div>
-                </div>`).join("");
+            cont.innerHTML = campeonatosActual.participaciones.map(p => `<div onclick="abrirModalEditarCampeonato('${p.idParticipacion}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition"><div class="flex justify-between items-start mb-2"><div><h3 class="font-black text-lg text-slate-800 leading-tight">${p.nombreCampeonato}</h3><p class="text-[11px] text-slate-400 font-bold">📅 Inicio: ${p.fechaInicio || 'Por definir'}</p></div><span class="bg-indigo-100 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase">${p.puestoAlcanzado || 'En curso'}</span></div><div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100 text-center"><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.minutosTiempo || '-'} min</p><p class="text-[9px] text-slate-400 font-bold uppercase">x Tiempo</p></div><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.jugadoresCancha || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Jug/Cancha</p></div><div class="bg-slate-50 rounded-lg p-1.5"><p class="text-xs font-black text-slate-700">${p.equiposParticipantes || '-'}</p><p class="text-[9px] text-slate-400 font-bold uppercase">Equipos</p></div></div></div>`).join("");
         } catch (e) { cont.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
     }
 
@@ -462,13 +442,8 @@
         modoCampeonato = modo;
         const tabExist = document.getElementById('tabCampExistente'), tabNuevo = document.getElementById('tabCampNuevo');
         const blkExist = document.getElementById('bloqueCampExistente'), blkNuevo = document.getElementById('bloqueCampNuevo');
-        if (modo === 'existente') {
-            tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow"; tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
-            blkExist.classList.remove('hidden'); blkNuevo.classList.add('hidden');
-        } else {
-            tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow"; tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100";
-            blkNuevo.classList.remove('hidden'); blkExist.classList.add('hidden');
-        }
+        if (modo === 'existente') { tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow"; tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100"; blkExist.classList.remove('hidden'); blkNuevo.classList.add('hidden'); }
+        else { tabNuevo.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-600 text-white shadow"; tabExist.className = "flex-1 py-2 text-xs font-bold rounded-lg text-slate-600 hover:bg-slate-100"; blkNuevo.classList.remove('hidden'); blkExist.classList.add('hidden'); }
     }
 
     function abrirModalInscribirCampeonato() {
@@ -531,13 +506,7 @@
             const data = await res.json();
             rosterActual = { seleccionados: data.seleccionados || [], disponibles: data.disponibles || [] };
             if (rosterActual.seleccionados.length === 0) { grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 text-xs'>Aún no hay jugadores en esta selección.</p>"; return; }
-            grid.innerHTML = rosterActual.seleccionados.map(j => `
-                <div onclick="abrirModalEditarJugador('${j.dni}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative cursor-pointer hover:shadow-md active:scale-95 transition">
-                    <span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2.5 py-1 text-xs rounded-bl-xl z-10">${j.camiseta || '-'}</span>
-                    <span class="absolute top-2 left-2 bg-white/90 text-slate-700 p-1 rounded-full text-[10px] shadow">✏️</span>
-                    <img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100">
-                    <div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p></div>
-                </div>`).join("");
+            grid.innerHTML = rosterActual.seleccionados.map(j => `<div onclick="abrirModalEditarJugador('${j.dni}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative cursor-pointer hover:shadow-md active:scale-95 transition"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2.5 py-1 text-xs rounded-bl-xl z-10">${j.camiseta || '-'}</span><span class="absolute top-2 left-2 bg-white/90 text-slate-700 p-1 rounded-full text-[10px] shadow">✏️</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p></div></div>`).join("");
         } catch (e) { grid.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
     }
 
@@ -586,11 +555,9 @@
             formData.append('idColegio', estadoGlobal.idColegio);
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             if (base64FotoNuevo) formData.append('fotoBase64', base64FotoNuevo);
-
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoJugador(); cargarRosterProfe(); }
-            else throw new Error(data.error || "Error al registrar.");
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoJugador(); cargarRosterProfe(); } else throw new Error(data.error || "Error al registrar.");
         } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "Registrar y Agregar"; btn.disabled = false; }
     }
 
@@ -598,23 +565,13 @@
         const j = rosterActual.seleccionados.find(x => x.dni == dni); if (!j) return;
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
         document.getElementById('ejGrado').innerHTML = eqInfo.categoria.split(',').map(g => `<option value="${g.trim()}" ${g.trim() === j.grado ? 'selected' : ''}>${g.trim()}</option>`).join('');
-        document.getElementById('ejDni').value = j.dni;
-        document.getElementById('ejNombres').value = j.nombres;
-        document.getElementById('ejApellidos').value = j.apellidos;
-        document.getElementById('ejCamiseta').value = j.camiseta || '';
-        document.getElementById('ejNombrePadre').value = j.nombrePadre || '';
-        document.getElementById('ejTelPadre').value = j.telefonoPadre || '';
-        document.getElementById('ejPreviewFoto').src = j.fotoUrl;
-        document.getElementById('ejInputFoto').value = "";
-        document.getElementById('ejDetalleBaja').value = "";
-        document.getElementById('bloqueMotivoBaja').classList.add('hidden');
-        base64FotoEditar = "";
+        document.getElementById('ejDni').value = j.dni; document.getElementById('ejNombres').value = j.nombres; document.getElementById('ejApellidos').value = j.apellidos;
+        document.getElementById('ejCamiseta').value = j.camiseta || ''; document.getElementById('ejNombrePadre').value = j.nombrePadre || ''; document.getElementById('ejTelPadre').value = j.telefonoPadre || '';
+        document.getElementById('ejPreviewFoto').src = j.fotoUrl; document.getElementById('ejInputFoto').value = ""; document.getElementById('ejDetalleBaja').value = "";
+        document.getElementById('bloqueMotivoBaja').classList.add('hidden'); base64FotoEditar = "";
         document.getElementById('modalEditarJugador').classList.replace('hidden', 'flex');
     }
-    function cerrarModalEditarJugador() {
-        document.getElementById('bloqueMotivoBaja').classList.add('hidden');
-        document.getElementById('modalEditarJugador').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalEditarJugador() { document.getElementById('bloqueMotivoBaja').classList.add('hidden'); document.getElementById('modalEditarJugador').classList.replace('flex', 'hidden'); }
 
     async function guardarEdicionJugador() {
         const nom = document.getElementById('ejNombres').value.trim();
@@ -622,21 +579,15 @@
         const btn = document.getElementById('btnGuardarEdicion'); btn.innerText = "Guardando..."; btn.disabled = true;
         try {
             const formData = new URLSearchParams();
-            formData.append('action', 'editarJugador');
-            formData.append('dni', document.getElementById('ejDni').value);
-            formData.append('nombres', nom);
-            formData.append('apellidos', document.getElementById('ejApellidos').value.trim());
-            formData.append('grado', document.getElementById('ejGrado').value);
-            formData.append('camiseta', document.getElementById('ejCamiseta').value.trim());
-            formData.append('nombrePadre', document.getElementById('ejNombrePadre').value.trim());
-            formData.append('telefonoPadre', document.getElementById('ejTelPadre').value.trim());
+            formData.append('action', 'editarJugador'); formData.append('dni', document.getElementById('ejDni').value);
+            formData.append('nombres', nom); formData.append('apellidos', document.getElementById('ejApellidos').value.trim());
+            formData.append('grado', document.getElementById('ejGrado').value); formData.append('camiseta', document.getElementById('ejCamiseta').value.trim());
+            formData.append('nombrePadre', document.getElementById('ejNombrePadre').value.trim()); formData.append('telefonoPadre', document.getElementById('ejTelPadre').value.trim());
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             if (base64FotoEditar) formData.append('fotoBase64', base64FotoEditar);
-
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarJugador(); cargarRosterProfe(); }
-            else throw new Error(data.error || "Error al actualizar.");
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarJugador(); cargarRosterProfe(); } else throw new Error(data.error || "Error al actualizar.");
         } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; }
     }
 
@@ -655,9 +606,7 @@
 
     function abrirModalAgregarExistente() {
         const cont = document.getElementById("listaDisponiblesModal");
-        cont.innerHTML = rosterActual.disponibles.length === 0
-            ? "<p class='text-center text-slate-400 text-xs py-6'>No hay más alumnos disponibles en estos grados.</p>"
-            : rosterActual.disponibles.map(j => `<div class="flex items-center justify-between py-3"><div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover bg-slate-100"><div><p class="font-bold text-sm text-slate-800 leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase">${j.grado}</p></div></div><button onclick="agregarExistenteAlEquipo('${j.dni}', '${j.camiseta || ''}', this)" class="bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-lg hover:bg-blue-200 transition">+ Sumar</button></div>`).join("");
+        cont.innerHTML = rosterActual.disponibles.length === 0 ? "<p class='text-center text-slate-400 text-xs py-6'>No hay más alumnos disponibles en estos grados.</p>" : rosterActual.disponibles.map(j => `<div class="flex items-center justify-between py-3"><div class="flex items-center gap-3"><img src="${j.fotoUrl}" class="w-10 h-10 rounded-full object-cover bg-slate-100"><div><p class="font-bold text-sm text-slate-800 leading-tight">${j.nombre}</p><p class="text-[10px] text-slate-400 font-bold uppercase">${j.grado}</p></div></div><button onclick="agregarExistenteAlEquipo('${j.dni}', '${j.camiseta || ''}', this)" class="bg-blue-100 text-blue-700 font-bold text-xs px-3 py-2 rounded-lg hover:bg-blue-200 transition">+ Sumar</button></div>`).join("");
         document.getElementById('modalAgregarExistente').classList.replace('hidden', 'flex');
     }
     function cerrarModalAgregarExistente() { document.getElementById('modalAgregarExistente').classList.replace('flex', 'hidden'); }
@@ -670,8 +619,7 @@
             formData.append('dni', dni); formData.append('camiseta', camiseta);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) { btn.innerText = "✓ Listo"; btn.classList.replace('bg-blue-100', 'bg-green-100'); btn.classList.replace('text-blue-700', 'text-green-700'); cargarRosterProfe(); }
-            else { btn.innerText = "+ Sumar"; btn.disabled = false; }
+            if (data.exito) { btn.innerText = "✓ Listo"; btn.classList.replace('bg-blue-100', 'bg-green-100'); btn.classList.replace('text-blue-700', 'text-green-700'); cargarRosterProfe(); } else { btn.innerText = "+ Sumar"; btn.disabled = false; }
         } catch (e) { btn.innerText = "+ Sumar"; btn.disabled = false; }
     }
 
@@ -689,13 +637,8 @@
             const formatDate = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
             contenedor.innerHTML = data.encuentros.map(e => {
                 let badgeEstado = '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">ACTIVO</span>', marcadorHtml = "";
-                if (e.estado === 'Pendiente Aprobación') {
-                    badgeEstado = '<span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold animate-pulse">⏳ PENDIENTE APROBACIÓN</span>';
-                    marcadorHtml = `<div class="mt-2 inline-block bg-amber-50 border border-amber-200 text-amber-900 font-black text-xs px-2.5 py-1 rounded-lg">Marcador reportado: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
-                } else if (e.estado === 'Cerrado/Aprobado') {
-                    badgeEstado = '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">✅ APROBADO</span>';
-                    marcadorHtml = `<div class="mt-2 inline-block bg-slate-800 text-white font-black text-xs px-3 py-1 rounded-lg">Final: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`;
-                }
+                if (e.estado === 'Pendiente Aprobación') { badgeEstado = '<span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold animate-pulse">⏳ PENDIENTE APROBACIÓN</span>'; marcadorHtml = `<div class="mt-2 inline-block bg-amber-50 border border-amber-200 text-amber-900 font-black text-xs px-2.5 py-1 rounded-lg">Marcador reportado: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`; }
+                else if (e.estado === 'Cerrado/Aprobado') { badgeEstado = '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">✅ APROBADO</span>'; marcadorHtml = `<div class="mt-2 inline-block bg-slate-800 text-white font-black text-xs px-3 py-1 rounded-lg">Final: ${e.golesPropio ?? 0} - ${e.golesRival ?? 0}</div>`; }
                 return `<div onclick="abrirDetalleEncuentro('${e.idEncuentro}')" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative mb-3 cursor-pointer hover:shadow-md active:scale-[0.99] transition"><div class="flex justify-between items-start gap-2 mb-1"><p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">vs Rival</p>${badgeEstado}</div><h3 class="font-black text-xl text-slate-800 uppercase leading-tight mb-2">${e.rival}</h3><div class="flex items-center text-xs font-bold text-slate-600 mb-1"><span class="mr-2 text-sm">📅</span> ${formatDate(e.fechaPartido)}</div><div class="flex items-center text-xs text-slate-500"><span class="mr-2 text-sm">🏟️</span> ${e.lugar}</div>${marcadorHtml}<p class="text-[10px] text-blue-600 font-bold mt-2 text-right">Tocar para ver detalle →</p></div>`;
             }).join("");
         } catch (e) { contenedor.innerHTML = "<p class='text-center text-red-500 my-10'>Error de conexión.</p>"; }
@@ -873,8 +816,7 @@
 
     function copiarLink() { const input = document.getElementById("linkGenerado"); input.select(); document.execCommand("copy"); mostrarAlerta("Enlace copiado al portapapeles."); }
 </script>
-
-    <!-- ======================================================= -->
+<!-- ======================================================= -->
 <!-- MODALES GLOBALES -->
 <!-- ======================================================= -->
 
@@ -897,21 +839,41 @@
             <h3 class="text-xl font-black"><span class="mr-2">🏫</span> Nuevo Colegio</h3>
             <button onclick="cerrarModalNuevoColegio()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
         </div>
-        <div class="overflow-y-auto pr-1 space-y-3">
-            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre del Colegio</label><input type="text" id="saNomColegio" placeholder="Ej. Colegio San José" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-            <div class="pt-2 border-t border-slate-100">
-                <p class="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-2">Primer Usuario Coordinador</p>
-                <div class="space-y-2.5">
-                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">DNI del Coordinador</label><input type="number" id="saDniCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="saNomCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="saApCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+
+        <!-- Formulario de creación -->
+        <div id="saFormCrear" class="flex flex-col flex-1 overflow-hidden">
+            <div class="overflow-y-auto pr-1 space-y-3">
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre del Colegio</label><input type="text" id="saNomColegio" placeholder="Ej. Colegio San José" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div class="pt-2 border-t border-slate-100">
+                    <p class="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-2">Primer Usuario Coordinador</p>
+                    <div class="space-y-2.5">
+                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">DNI del Coordinador</label><input type="number" id="saDniCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="saNomCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="saApCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                        </div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp (Para enviar acceso)</label><input type="number" id="saTelCoord" placeholder="999888777" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
                     </div>
-                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp (Opcional)</label><input type="number" id="saTelCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
                 </div>
             </div>
+            <button id="btnGuardarNuevoColegio" onclick="guardarNuevoColegio()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black transition shadow-lg">Crear Colegio y Coordinador</button>
         </div>
-        <button id="btnGuardarNuevoColegio" onclick="guardarNuevoColegio()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black transition shadow-lg">Crear Colegio y Coordinador</button>
+
+        <!-- Pantalla de éxito con envío por WhatsApp -->
+        <div id="saExitoCrear" class="hidden space-y-4 text-center">
+            <div class="w-14 h-14 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl">✅</div>
+            <h4 class="font-black text-lg text-slate-800">¡Colegio Creado con Éxito!</h4>
+            <p id="saExitoResumen" class="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed"></p>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 text-left">Web de Ingreso</label>
+                <div class="flex">
+                    <input type="text" id="saExitoLinkInput" readonly class="w-full border border-slate-300 p-2 rounded-l-xl text-[10px] font-mono bg-slate-50">
+                    <button onclick="copiarTextoInput('saExitoLinkInput')" class="bg-slate-800 text-white px-3 rounded-r-xl text-xs font-bold">Copiar</button>
+                </div>
+            </div>
+            <a id="saExitoBtnWsp" href="#" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-green-600 transition text-sm">💬 Enviar Credenciales por WhatsApp</a>
+            <button onclick="cerrarModalNuevoColegio()" class="w-full bg-slate-100 text-slate-700 font-bold py-3 rounded-xl text-xs hover:bg-slate-200 transition">Cerrar</button>
+        </div>
     </div>
 </div>
 
@@ -1140,7 +1102,7 @@
     <div id="superAdminMainView" class="hidden">
         <div class="bg-black text-white p-5 rounded-b-3xl shadow-lg mb-6">
             <h2 class="text-2xl font-black">Administración Global</h2>
-            <p class="text-xs text-amber-400 font-bold uppercase tracking-wider">Panel SuperAdmin</p>
+            <p class="text-xs text-amber-400 font-bold uppercase tracking-wider">Panel SuperAdmin • Directorio</p>
         </div>
         <div class="px-4 flex justify-between items-center mb-4">
             <h3 class="font-bold text-slate-800 text-lg">Colegios Clientes</h3>
