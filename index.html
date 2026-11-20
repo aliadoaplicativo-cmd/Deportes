@@ -997,14 +997,29 @@
         cFila.querySelector('.estado-asistencia-input').value = estado;
     }
 
-    function guardarAsistenciaBD() {
+    async function guardarAsistenciaBD() {
         const fecha = document.getElementById("fechaAsistencia").value; if (!fecha) return mostrarAlerta("Seleccione una fecha.");
         let arr = []; document.querySelectorAll('#listaAsistenciaTomar > div[data-dni]').forEach(fila => arr.push({ dni: fila.getAttribute('data-dni'), estado: fila.querySelector('.estado-asistencia-input').value }));
         if (arr.length === 0) return mostrarAlerta("No hay jugadores para registrar asistencia.");
         const btn = document.getElementById("btnGuardarAsist"); btn.innerText = "Guardando..."; btn.disabled = true;
-        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function() { mostrarAlerta("Asistencia guardada correctamente."); btn.innerText = "💾 Guardar Asistencia de Hoy"; btn.disabled = false; cerrarModuloProfe('profeAsistenciaView'); delete window[callbackName]; };
-        const s = document.createElement('script'); s.src = `${URL_BACKEND}?action=guardarAsistencia&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&fecha=${encodeURIComponent(fecha)}&datos=${encodeURIComponent(JSON.stringify(arr))}&callback=${callbackName}`; document.body.appendChild(s);
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'guardarAsistencia');
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('fecha', fecha);
+            formData.append('datos', JSON.stringify(arr));
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito) {
+                mostrarAlerta("Asistencia guardada correctamente.");
+                cerrarModuloProfe('profeAsistenciaView');
+            } else throw new Error(data.error || "Error al guardar asistencia.");
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "💾 Guardar Asistencia de Hoy";
+            btn.disabled = false;
+        }
     }
 
     async function iniciarProgramacionPartido() {
@@ -1030,12 +1045,23 @@
         document.getElementById("contadorConvocados").innerText = estadoGlobal.dnisConvocados.length;
     }
 
-    function guardarEncuentro() {
+    async function guardarEncuentro() {
         const idCamp = document.getElementById("selCampeonato").value, rival = document.getElementById("txtRival").value.trim(), fecha = document.getElementById("txtFecha").value, fechaConv = document.getElementById("txtFechaConvocatoria").value, lugar = document.getElementById("txtLugar").value.trim(), dir = document.getElementById("txtDireccion").value.trim();
         if (!idCamp || !rival || !fecha || !fechaConv || !lugar || estadoGlobal.dnisConvocados.length === 0) return mostrarAlerta("Por favor complete todos los campos y seleccione al menos 1 jugador.");
         const btn = document.getElementById("btnGuardarEncuentro"); btn.innerText = "Programando..."; btn.disabled = true;
-        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(dataGuardar) {
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'guardarEncuentro');
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('idCampeonato', idCamp);
+            formData.append('rival', rival);
+            formData.append('fechaPartido', fecha);
+            formData.append('fechaConvocatoria', fechaConv);
+            formData.append('lugar', lugar);
+            formData.append('direccion', dir);
+            formData.append('dnisConvocados', JSON.stringify(estadoGlobal.dnisConvocados));
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const dataGuardar = JSON.parse(await res.text());
             if (dataGuardar.exito) {
                 document.getElementById("formProgramacion").classList.add("hidden"); document.getElementById("pantallaExito").classList.remove("hidden");
                 document.getElementById("linkGenerado").value = `${URL_GITHUB}?token=${dataGuardar.token}`;
@@ -1043,10 +1069,13 @@
                 const fd = (dateStr) => new Date(dateStr).toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                 let msg = `⚽ *CONVOCATORIA OFICIAL* ⚽\n\n*Rival:* ${rival}\n*Día y Hora:* ${fd(fecha)}\n*Hora de Citación:* ${fd(fechaConv)}\n*Lugar:* ${lugar}\n*Ref:* ${dir}\n\n*Jugadores Convocados:*\n` + nombres.map(n => `✅ ${n}\n`).join("") + `\n*Necesitamos apoyo:* ¿Algún padre voluntario para llevar las estadísticas en la Mesa de Control? Responda a este mensaje para enviarle el link privado.`;
                 document.getElementById("btnWhatsAppGrupo").innerHTML = `<a href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-3 rounded-lg shadow-md hover:bg-green-600 transition">Enviar al Grupo WhatsApp</a>`;
-            } else mostrarAlerta("Error al programar el partido.");
-            btn.innerText = "💾 Programar y Generar Link"; btn.disabled = false; delete window[callbackName];
-        };
-        const s = document.createElement('script'); s.src = `${URL_BACKEND}?action=guardarEncuentro&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&idCampeonato=${encodeURIComponent(idCamp)}&rival=${encodeURIComponent(rival)}&fechaPartido=${encodeURIComponent(fecha)}&fechaConvocatoria=${encodeURIComponent(fechaConv)}&lugar=${encodeURIComponent(lugar)}&direccion=${encodeURIComponent(dir)}&dnisConvocados=${encodeURIComponent(JSON.stringify(estadoGlobal.dnisConvocados))}&callback=${callbackName}`; document.body.appendChild(s);
+            } else throw new Error(dataGuardar.error || "Error al programar el partido.");
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "💾 Programar y Generar Link";
+            btn.disabled = false;
+        }
     }
 
     function copiarLink() { const input = document.getElementById("linkGenerado"); input.select(); document.execCommand("copy"); mostrarAlerta("Enlace copiado al portapapeles."); }
@@ -1681,3 +1710,5 @@
 
 </body>
 </html>
+
+Mostrando Codigo_v2_2026-11-20.txt.
