@@ -1,6 +1,5 @@
-    
-index_v1_2026-11-20.txt
-100 %
+
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -33,6 +32,7 @@ index_v1_2026-11-20.txt
     };
 
     let colegiosSA = [];
+    let profesoresColegio = [];
     let rosterActual = { seleccionados: [], disponibles: [] };
     let campeonatosActual = { participaciones: [], disponibles: [] };
     let modoCampeonato = "existente";
@@ -126,6 +126,14 @@ index_v1_2026-11-20.txt
         const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(idColegio)}`;
         const msg = `🏆 *BIENVENIDO A LA PLATAFORMA DE FÚTBOL ESCOLAR* 🏆\n\nHola *${nombreCoord}*,\nYa se encuentra activo el acceso para *${nombreColegio}*.\n\n🌐 *Web de ingreso:* ${urlColegio}\n🔑 *Usuario (DNI):* ${dniCoord}\n👔 *Rol:* Coordinador Deportivo\n\nCualquier consulta estamos a su disposición.`;
         const base = telCoord ? `https://wa.me/${telCoord}` : `https://wa.me/`;
+        return `${base}?text=${encodeURIComponent(msg)}`;
+    }
+
+    function generarLinkWspDT(nombreDT, dniDT, telDT, nombreEquipo) {
+        const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(estadoGlobal.idColegio)}`;
+        const lineaEquipo = nombreEquipo ? `⚽ *Equipo asignado:* ${nombreEquipo}\n` : "";
+        const msg = `🏆 *ACCESO A LA PLATAFORMA DEPORTIVA* 🏆\n\nHola profe *${nombreDT}*,\nYa se encuentra activo tu acceso como entrenador en *${estadoGlobal.nombreColegio}*.\n\n${lineaEquipo}🌐 *Web de ingreso:* ${urlColegio}\n🔑 *Usuario (DNI):* ${dniDT}\n👔 *Rol:* Entrenador (DT)\n\nIngresa con tu DNI para gestionar tu plantel, asistencias y partidos.`;
+        const base = telDT ? `https://wa.me/${telDT}` : `https://wa.me/`;
         return `${base}?text=${encodeURIComponent(msg)}`;
     }
 
@@ -433,9 +441,19 @@ index_v1_2026-11-20.txt
         document.getElementById("dashCoordNombreEquipo").innerText = sel.nombreEquipo;
         document.getElementById("dashCoordCategoriaEquipo").innerText = sel.categoria;
         document.getElementById("dashCoordNombreDT").innerText = sel.profesor;
-        document.getElementById("dashCoordWspDT").innerHTML = sel.telefonoWsp
-            ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-green-100 text-green-600 p-2 rounded-lg flex items-center justify-center hover:bg-green-200 transition text-xs font-bold">💬 Wsp</a>`
-            : "";
+        if (sel.dniProfesor) {
+            const linkAccesoDT = generarLinkWspDT(sel.profesor, sel.dniProfesor, sel.telefonoWsp, sel.nombreEquipo);
+            const btnChat = sel.telefonoWsp
+                ? `<a href="https://wa.me/${sel.telefonoWsp}" target="_blank" class="bg-slate-100 text-slate-700 px-2.5 py-2 rounded-lg hover:bg-slate-200 transition text-xs font-bold" title="Abrir chat">💬</a>`
+                : "";
+            document.getElementById("dashCoordWspDT").innerHTML = `
+                <div class="flex items-center gap-1.5">
+                    <a href="${linkAccesoDT}" target="_blank" class="bg-[#25D366] text-white px-3 py-2 rounded-lg hover:bg-green-600 transition text-xs font-bold shadow-sm flex items-center gap-1">🔑 Acceso Wsp</a>
+                    ${btnChat}
+                </div>`;
+        } else {
+            document.getElementById("dashCoordWspDT").innerHTML = "";
+        }
     }
 
     function volverAMenuCoordinador() {
@@ -496,6 +514,8 @@ index_v1_2026-11-20.txt
 
     function abrirModalNuevoDT() {
         ['ndtDni', 'ndtNombres', 'ndtApellidos', 'ndtTelefono'].forEach(id => document.getElementById(id).value = "");
+        document.getElementById('ndtFormCrear').classList.remove('hidden');
+        document.getElementById('ndtExitoCrear').classList.add('hidden');
         document.getElementById('modalNuevoDT').classList.replace('hidden', 'flex');
     }
     function cerrarModalNuevoDT() { document.getElementById('modalNuevoDT').classList.replace('flex', 'hidden'); }
@@ -510,8 +530,22 @@ index_v1_2026-11-20.txt
             formData.append('apellidos', ap); formData.append('telefono', tel); formData.append('idColegio', estadoGlobal.idColegio);
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalNuevoDT(); cargarModuloDT(); }
-            else throw new Error(data.error || "Error al registrar DT.");
+            if (data.exito) {
+                const eqActual = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado);
+                const nomDT = data.nombre || `${nom} ${ap}`.trim();
+                const dniDT = data.dni || dni;
+                const telDT = data.telefono || '';
+                const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(estadoGlobal.idColegio)}`;
+                const linkWsp = generarLinkWspDT(nomDT, dniDT, telDT, eqActual ? eqActual.nombreEquipo : '');
+
+                document.getElementById('ndtExitoResumen').innerHTML = `Entrenador: <b>${nomDT}</b><br>Usuario (DNI): <b>${dniDT}</b>`;
+                document.getElementById('ndtExitoLinkInput').value = urlColegio;
+                document.getElementById('ndtExitoBtnWsp').href = linkWsp;
+
+                document.getElementById('ndtFormCrear').classList.add('hidden');
+                document.getElementById('ndtExitoCrear').classList.remove('hidden');
+                cargarModuloDT();
+            } else throw new Error(data.error || "Error al registrar DT.");
         } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "Registrar Entrenador"; btn.disabled = false; }
     }
 
@@ -521,11 +555,12 @@ index_v1_2026-11-20.txt
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerProfesores&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            sel.innerHTML = "<option value=''>Seleccione un Profesor...</option>" + (data.profesores || []).map(p => `<option value="${p.dni}">${p.nombre}</option>`).join("");
+            profesoresColegio = data.profesores || [];
+            sel.innerHTML = "<option value=''>Seleccione un Profesor...</option>" + profesoresColegio.map(p => `<option value="${p.dni}">${p.nombre}</option>`).join("");
         } catch (e) { sel.innerHTML = "<option value=''>Error al cargar</option>"; }
     }
 
-    // CORREGIDO: Ahora usa fetch POST directo (no se queda colgado)
+    // CORREGIDO: Usa fetch POST directo y actualiza DNI + WhatsApp del DT en memoria
     async function guardarNuevoDT() {
         const dniProfesor = document.getElementById("selNuevoDT").value;
         if (!dniProfesor) return mostrarAlerta("Seleccione un profesor de la lista.");
@@ -542,7 +577,12 @@ index_v1_2026-11-20.txt
             const data = JSON.parse(await res.text());
             if (data.exito) {
                 const eq = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado);
-                if (eq) eq.profesor = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text;
+                const profInfo = profesoresColegio.find(p => p.dni == dniProfesor);
+                if (eq) {
+                    eq.profesor = profInfo ? profInfo.nombre : document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text;
+                    eq.dniProfesor = dniProfesor;
+                    eq.telefonoWsp = profInfo ? (profInfo.telefono || '') : '';
+                }
                 mostrarAlerta(data.mensaje || "Entrenador asignado con éxito.");
                 cerrarModuloCoordinador('moduloDT');
                 abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado);
@@ -1241,13 +1281,29 @@ index_v1_2026-11-20.txt
             <h3 class="text-xl font-black"><span class="mr-2">👔</span> Nuevo Entrenador</h3>
             <button onclick="cerrarModalNuevoDT()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
         </div>
-        <div class="space-y-3">
-            <div><label class="block text-[11px] font-bold text-slate-500 uppercase">DNI</label><input type="number" id="ndtDni" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-            <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ndtNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-            <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ndtApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-            <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Teléfono (WhatsApp)</label><input type="number" id="ndtTelefono" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+        <div id="ndtFormCrear">
+            <div class="space-y-3">
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase">DNI</label><input type="number" id="ndtDni" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ndtNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ndtApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div><label class="block text-[11px] font-bold text-slate-500 uppercase">Teléfono (WhatsApp)</label><input type="number" id="ndtTelefono" placeholder="999888777" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+            </div>
+            <button id="btnGuardarNuevoDTBackend" onclick="guardarNuevoDTBackend()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-blue-700 transition">Registrar Entrenador</button>
         </div>
-        <button id="btnGuardarNuevoDTBackend" onclick="guardarNuevoDTBackend()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl mt-4 hover:bg-blue-700 transition">Registrar Entrenador</button>
+        <div id="ndtExitoCrear" class="hidden space-y-4 text-center">
+            <div class="w-14 h-14 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl">✅</div>
+            <h4 class="font-black text-lg text-slate-800">¡Entrenador Registrado!</h4>
+            <p id="ndtExitoResumen" class="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-200 leading-relaxed"></p>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 text-left">Web de Ingreso</label>
+                <div class="flex">
+                    <input type="text" id="ndtExitoLinkInput" readonly class="w-full border border-slate-300 p-2 rounded-l-xl text-[10px] font-mono bg-slate-50">
+                    <button onclick="copiarTextoInput('ndtExitoLinkInput')" class="bg-slate-800 text-white px-3 rounded-r-xl text-xs font-bold">Copiar</button>
+                </div>
+            </div>
+            <a id="ndtExitoBtnWsp" href="#" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-green-600 transition text-sm">💬 Enviar Acceso por WhatsApp</a>
+            <button onclick="cerrarModalNuevoDT()" class="w-full bg-slate-100 text-slate-700 font-bold py-3 rounded-xl text-xs hover:bg-slate-200 transition">Cerrar y Asignar</button>
+        </div>
     </div>
 </div>
 
@@ -1625,5 +1681,3 @@ index_v1_2026-11-20.txt
 
 </body>
 </html>
-<!-- === FIN COMPLETO DEL ARCHIVO index.html (v1 - 2026-11-20) === -->
-Página 1 de 26
