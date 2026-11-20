@@ -1,3 +1,6 @@
+    
+index_v1_2026-11-20.txt
+100 %
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -15,19 +18,28 @@
 
     let estadoGlobal = {
         idColegio: "",
+        nombreColegio: "Plataforma Fútbol Escolar",
+        logoUrl: "",
+        colorPrimario: "#0f172a",
+        colorSecundario: "#eab308",
         dniLogueado: "",
         rol: "",
         idEquipoSeleccionado: "",
         seleccionesCoordinador: [],
+        categoriasBaseColegio: [],
+        maxSeleccionesColegio: 0,
         equiposProfesor: [],
         dnisConvocados: []
     };
 
+    let colegiosSA = [];
     let rosterActual = { seleccionados: [], disponibles: [] };
     let campeonatosActual = { participaciones: [], disponibles: [] };
     let modoCampeonato = "existente";
     let base64FotoNuevo = "";
     let base64FotoEditar = "";
+    let base64LogoNuevo = "";
+    let base64LogoEditar = "";
     let contenedorEncuentrosActual = "listaEncuentrosProfe";
 
     let detalleEncuentroActual = null;
@@ -48,6 +60,25 @@
             .catch(() => mostrarAlerta("No se pudo copiar automáticamente."));
     }
 
+    function aplicarBrandingColegio() {
+        const bg = estadoGlobal.colorPrimario || "#0f172a";
+        ['headerCoordMain', 'headerCoordDash', 'headerProfeMain', 'headerProfeDash'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.backgroundColor = bg;
+        });
+        ['lblColegioCoord', 'lblColegioProfe'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = estadoGlobal.nombreColegio;
+        });
+        ['logoColegioCoord', 'logoColegioProfe'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && estadoGlobal.logoUrl) {
+                el.src = estadoGlobal.logoUrl;
+                el.classList.remove('hidden');
+            }
+        });
+    }
+
     // ==========================================
     // LOGIN
     // ==========================================
@@ -66,13 +97,21 @@
             estadoGlobal.dniLogueado = data.dni;
             estadoGlobal.rol = data.rol;
             estadoGlobal.idColegio = data.idColegio;
+            estadoGlobal.nombreColegio = data.nombreColegio || "Plataforma Fútbol Escolar";
+            estadoGlobal.logoUrl = data.logoUrl || "";
+            estadoGlobal.colorPrimario = data.colorPrimario || "#0f172a";
+            estadoGlobal.colorSecundario = data.colorSecundario || "#eab308";
 
             document.getElementById("loginView").classList.add("hidden");
 
-            if (data.rol === 'SuperAdmin') cargarMenuSuperAdmin();
-            else if (data.rol === 'Coordinador') cargarMenuCoordinador();
-            else if (data.rol === 'Profesor') cargarMenuProfesor();
-            else throw new Error("Rol no reconocido.");
+            if (data.rol === 'SuperAdmin') {
+                cargarMenuSuperAdmin();
+            } else {
+                aplicarBrandingColegio();
+                if (data.rol === 'Coordinador') cargarMenuCoordinador();
+                else if (data.rol === 'Profesor') cargarMenuProfesor();
+                else throw new Error("Rol no reconocido.");
+            }
         } catch (error) {
             mostrarAlerta(error.message);
             btn.innerText = "Ingresar al Panel";
@@ -81,13 +120,35 @@
     }
 
     // ==========================================
-    // 0. FLUJOS DEL SUPERADMIN (DIRECTORIO + WHATSAPP)
+    // 0. FLUJOS DEL SUPERADMIN (DIRECTORIO, EDICIÓN, BRANDING Y COORDINADORES)
     // ==========================================
     function generarLinkWspCredenciales(nombreColegio, nombreCoord, dniCoord, telCoord, idColegio) {
         const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(idColegio)}`;
         const msg = `🏆 *BIENVENIDO A LA PLATAFORMA DE FÚTBOL ESCOLAR* 🏆\n\nHola *${nombreCoord}*,\nYa se encuentra activo el acceso para *${nombreColegio}*.\n\n🌐 *Web de ingreso:* ${urlColegio}\n🔑 *Usuario (DNI):* ${dniCoord}\n👔 *Rol:* Coordinador Deportivo\n\nCualquier consulta estamos a su disposición.`;
         const base = telCoord ? `https://wa.me/${telCoord}` : `https://wa.me/`;
         return `${base}?text=${encodeURIComponent(msg)}`;
+    }
+
+    function procesarLogoColegio(event, imgPreviewId, modo) {
+        const file = event.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const max = 250;
+                const scale = Math.min(max / img.width, max / img.height, 1);
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                const compressed = canvas.toDataURL('image/png');
+                if (modo === 'nuevo') base64LogoNuevo = compressed;
+                else base64LogoEditar = compressed;
+                document.getElementById(imgPreviewId).src = compressed;
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
     }
 
     async function cargarMenuSuperAdmin() {
@@ -98,31 +159,35 @@
         try {
             const res = await fetch(`${URL_BACKEND}?action=obtenerPanelSuperAdmin`);
             const data = await res.json();
-            const colegios = data.colegios || [];
+            colegiosSA = data.colegios || [];
 
-            if (colegios.length === 0) {
+            if (colegiosSA.length === 0) {
                 cont.innerHTML = "<p class='text-center text-slate-500 my-10 text-xs'>No hay colegios registrados.</p>";
                 return;
             }
 
-            cont.innerHTML = colegios.map(c => {
+            cont.innerHTML = colegiosSA.map(c => {
                 const activo = c.estado === 'Activo';
                 const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(c.idColegio)}`;
                 const linkWsp = generarLinkWspCredenciales(c.nombre, c.coordinador, c.dniCoord, c.telCoord, c.idColegio);
+                const planTxt = c.maxSelecciones ? `${c.totalSelecciones}/${c.maxSelecciones} selecciones` : `${c.totalSelecciones} selecciones (Ilimitado)`;
 
                 const badge = activo
                     ? '<span class="bg-green-100 text-green-700 text-[10px] font-black px-2.5 py-1 rounded-full">ACTIVO</span>'
                     : '<span class="bg-red-100 text-red-700 text-[10px] font-black px-2.5 py-1 rounded-full">SUSPENDIDO</span>';
                 const btnToggle = activo
-                    ? `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Inactivo')" class="bg-red-50 text-red-600 border border-red-200 text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-red-100 transition">⛔ Suspender</button>`
-                    : `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Activo')" class="bg-green-50 text-green-700 border border-green-200 text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-green-100 transition">✅ Reactivar</button>`;
+                    ? `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Inactivo')" class="bg-red-50 text-red-600 border border-red-200 text-[11px] font-bold px-2.5 py-2 rounded-xl hover:bg-red-100 transition">⛔ Suspender</button>`
+                    : `<button onclick="cambiarEstadoColegio('${c.idColegio}', 'Activo')" class="bg-green-50 text-green-700 border border-green-200 text-[11px] font-bold px-2.5 py-2 rounded-xl hover:bg-green-100 transition">✅ Reactivar</button>`;
 
                 return `
-                <div class="bg-white rounded-2xl shadow-sm border-l-8 ${activo ? 'border-green-600' : 'border-red-500'} p-4 mb-3">
+                <div class="bg-white rounded-2xl shadow-sm border-l-8 p-4 mb-3" style="border-left-color: ${activo ? (c.colorPrimario || '#16a34a') : '#ef4444'}">
                     <div class="flex justify-between items-start gap-2 mb-2">
-                        <div>
-                            <h3 class="font-black text-lg text-slate-800 leading-tight">${c.nombre}</h3>
-                            <p class="text-[10px] text-slate-400 font-bold uppercase">ID: ${c.idColegio}</p>
+                        <div class="flex items-center gap-3">
+                            <img src="${c.logoUrl}" class="w-10 h-10 rounded-xl object-cover bg-slate-100 border border-slate-200 shrink-0">
+                            <div>
+                                <h3 class="font-black text-base text-slate-800 leading-tight">${c.nombre}</h3>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase">${c.idColegio} • ${planTxt}</p>
+                            </div>
                         </div>
                         ${badge}
                     </div>
@@ -131,8 +196,11 @@
                         <a href="${urlColegio}" target="_blank" class="text-[10px] text-blue-600 font-mono truncate hover:underline">${urlColegio}</a>
                         <button onclick="copiarTextoDirecto('${urlColegio}')" class="bg-slate-200 text-slate-700 text-[10px] font-bold px-2 py-1 rounded-lg shrink-0 hover:bg-slate-300">Copiar</button>
                     </div>
-                    <div class="flex justify-between items-center gap-2">
-                        <a href="${linkWsp}" target="_blank" class="bg-[#25D366] text-white text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-green-600 transition flex items-center gap-1 shadow-sm">💬 Enviar Acceso</a>
+                    <div class="flex flex-wrap justify-between items-center gap-2">
+                        <div class="flex gap-1.5">
+                            <button onclick="abrirModalEditarColegio('${c.idColegio}')" class="bg-slate-800 text-white text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-black transition">✏️ Editar</button>
+                            <a href="${linkWsp}" target="_blank" class="bg-[#25D366] text-white text-[11px] font-bold px-3 py-2 rounded-xl hover:bg-green-600 transition">💬 Wsp</a>
+                        </div>
                         ${btnToggle}
                     </div>
                 </div>`;
@@ -143,21 +211,22 @@
     }
 
     function abrirModalNuevoColegio() {
-        ['saNomColegio', 'saDniCoord', 'saNomCoord', 'saApCoord', 'saTelCoord'].forEach(id => document.getElementById(id).value = "");
+        ['saNomColegio', 'saDniCoord', 'saNomCoord', 'saApCoord', 'saTelCoord', 'saMaxSel', 'saInputLogoNuevo'].forEach(id => document.getElementById(id).value = "");
+        document.getElementById('saCatsBase').value = "1ro Secundaria, 2do Secundaria, 3ro Secundaria, 4to Secundaria, 5to Secundaria";
+        document.getElementById('saColorPrim').value = "#0f172a";
+        document.getElementById('saColorSec').value = "#eab308";
+        document.getElementById('saPreviewLogoNuevo').src = "https://placehold.co/150x150?text=Logo";
+        base64LogoNuevo = "";
         document.getElementById('saFormCrear').classList.remove('hidden');
         document.getElementById('saExitoCrear').classList.add('hidden');
         document.getElementById('modalNuevoColegio').classList.replace('hidden', 'flex');
     }
-    function cerrarModalNuevoColegio() {
-        document.getElementById('modalNuevoColegio').classList.replace('flex', 'hidden');
-    }
+    function cerrarModalNuevoColegio() { document.getElementById('modalNuevoColegio').classList.replace('flex', 'hidden'); }
 
     async function guardarNuevoColegio() {
         const nomCol = document.getElementById('saNomColegio').value.trim();
         const dni = document.getElementById('saDniCoord').value.trim();
         const nom = document.getElementById('saNomCoord').value.trim();
-        const ap = document.getElementById('saApCoord').value.trim();
-        const tel = document.getElementById('saTelCoord').value.trim();
         if (!nomCol || !dni || !nom) return mostrarAlerta("Complete Nombre del Colegio, DNI y Nombres del Coordinador.");
 
         const btn = document.getElementById('btnGuardarNuevoColegio');
@@ -168,19 +237,22 @@
             formData.append('nombreColegio', nomCol);
             formData.append('dniCoord', dni);
             formData.append('nomCoord', nom);
-            formData.append('apCoord', ap);
-            formData.append('telCoord', tel);
+            formData.append('apCoord', document.getElementById('saApCoord').value.trim());
+            formData.append('telCoord', document.getElementById('saTelCoord').value.trim());
+            formData.append('categoriasBase', document.getElementById('saCatsBase').value.trim());
+            formData.append('maxSelecciones', document.getElementById('saMaxSel').value.trim());
+            formData.append('colorPrimario', document.getElementById('saColorPrim').value);
+            formData.append('colorSecundario', document.getElementById('saColorSec').value);
+            if (base64LogoNuevo) formData.append('logoBase64', base64LogoNuevo);
 
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
             if (data.exito) {
                 const urlColegio = `${URL_WEB_APP}?colegio=${encodeURIComponent(data.idColegio)}`;
                 const linkWsp = generarLinkWspCredenciales(data.nombreColegio, data.nombreCoord, data.dniCoord, data.telCoord, data.idColegio);
-
                 document.getElementById('saExitoResumen').innerHTML = `Colegio: <b>${data.nombreColegio}</b><br>Coordinador: <b>${data.nombreCoord}</b><br>Usuario (DNI): <b>${data.dniCoord}</b>`;
                 document.getElementById('saExitoLinkInput').value = urlColegio;
                 document.getElementById('saExitoBtnWsp').href = linkWsp;
-
                 document.getElementById('saFormCrear').classList.add('hidden');
                 document.getElementById('saExitoCrear').classList.remove('hidden');
                 cargarMenuSuperAdmin();
@@ -189,19 +261,126 @@
         finally { btn.innerText = "Crear Colegio y Coordinador"; btn.disabled = false; }
     }
 
+    function abrirModalEditarColegio(idColegio) {
+        const c = colegiosSA.find(x => x.idColegio === idColegio);
+        if (!c) return;
+        document.getElementById('edColId').value = c.idColegio;
+        document.getElementById('edColNombre').value = c.nombre;
+        document.getElementById('edColColorPrim').value = c.colorPrimario || '#0f172a';
+        document.getElementById('edColColorSec').value = c.colorSecundario || '#eab308';
+        document.getElementById('edColCatsBase').value = c.categoriasBase || '';
+        document.getElementById('edColMaxSel').value = c.maxSelecciones || '';
+        document.getElementById('edPreviewLogo').src = c.logoUrl || 'https://placehold.co/150x150?text=Logo';
+        document.getElementById('edInputLogo').value = '';
+        base64LogoEditar = '';
+
+        ['edNewCoordDni', 'edNewCoordNom', 'edNewCoordAp', 'edNewCoordTel'].forEach(id => document.getElementById(id).value = '');
+        renderListaCoordinadoresModal(c);
+        document.getElementById('modalEditarColegio').classList.replace('hidden', 'flex');
+    }
+    function cerrarModalEditarColegio() { document.getElementById('modalEditarColegio').classList.replace('flex', 'hidden'); }
+
+    function renderListaCoordinadoresModal(c) {
+        const cont = document.getElementById('edListaCoords');
+        const coords = c.coordinadores || [];
+        if (coords.length === 0) {
+            cont.innerHTML = "<p class='text-xs text-slate-400 text-center py-2'>Sin coordinadores registrados.</p>";
+            return;
+        }
+        cont.innerHTML = coords.map(u => {
+            const act = u.estado === 'Activo';
+            const wsp = generarLinkWspCredenciales(c.nombre, u.nombre, u.dni, u.telefono, c.idColegio);
+            return `
+            <div class="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs">
+                <div class="min-w-0 pr-2">
+                    <p class="font-bold text-slate-800 truncate">${u.nombre} ${act ? '' : '<span class="text-red-500">(Inactivo)</span>'}</p>
+                    <p class="text-[10px] text-slate-500">DNI: ${u.dni}</p>
+                </div>
+                <div class="flex gap-1 shrink-0">
+                    <a href="${wsp}" target="_blank" class="bg-[#25D366] text-white font-bold px-2 py-1 rounded-lg text-[10px]">💬</a>
+                    <button onclick="toggleEstadoCoordinador('${u.dni}', '${act ? 'Inactivo' : 'Activo'}')" class="${act ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'} font-bold px-2 py-1 rounded-lg text-[10px]">${act ? 'Baja' : 'Activar'}</button>
+                </div>
+            </div>`;
+        }).join("");
+    }
+
+    async function guardarEdicionColegio() {
+        const idCol = document.getElementById('edColId').value;
+        const nom = document.getElementById('edColNombre').value.trim();
+        if (!nom) return mostrarAlerta("El nombre del colegio no puede estar vacío.");
+        const btn = document.getElementById('btnGuardarEdicionCol'); btn.innerText = "Guardando..."; btn.disabled = true;
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'editarColegio');
+            formData.append('idColegio', idCol);
+            formData.append('nombreColegio', nom);
+            formData.append('colorPrimario', document.getElementById('edColColorPrim').value);
+            formData.append('colorSecundario', document.getElementById('edColColorSec').value);
+            formData.append('categoriasBase', document.getElementById('edColCatsBase').value.trim());
+            formData.append('maxSelecciones', document.getElementById('edColMaxSel').value.trim());
+            if (base64LogoEditar) formData.append('logoBase64', base64LogoEditar);
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito) { mostrarAlerta(data.mensaje); cerrarModalEditarColegio(); cargarMenuSuperAdmin(); }
+            else throw new Error(data.error || "Error al actualizar colegio.");
+        } catch (e) { mostrarAlerta(e.message); }
+        finally { btn.innerText = "💾 Guardar Configuración"; btn.disabled = false; }
+    }
+
+    async function agregarCoordinadorExtra() {
+        const idCol = document.getElementById('edColId').value;
+        const dni = document.getElementById('edNewCoordDni').value.trim();
+        const nom = document.getElementById('edNewCoordNom').value.trim();
+        if (!dni || !nom) return mostrarAlerta("Ingrese DNI y Nombres del nuevo coordinador.");
+        const btn = document.getElementById('btnAgregarCoordExtra'); btn.innerText = "Agregando..."; btn.disabled = true;
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'agregarCoordinadorColegio');
+            formData.append('idColegio', idCol);
+            formData.append('dni', dni);
+            formData.append('nombres', nom);
+            formData.append('apellidos', document.getElementById('edNewCoordAp').value.trim());
+            formData.append('telefono', document.getElementById('edNewCoordTel').value.trim());
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                await cargarMenuSuperAdmin();
+                abrirModalEditarColegio(idCol);
+            } else throw new Error(data.error || "Error al agregar coordinador.");
+        } catch (e) { mostrarAlerta(e.message); }
+        finally { btn.innerText = "+ Agregar Coordinador"; btn.disabled = false; }
+    }
+
+    async function toggleEstadoCoordinador(dni, nuevoEstado) {
+        const idCol = document.getElementById('edColId').value;
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'cambiarEstadoUsuario');
+            formData.append('dni', dni);
+            formData.append('nuevoEstado', nuevoEstado);
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito) {
+                mostrarAlerta(data.mensaje);
+                await cargarMenuSuperAdmin();
+                abrirModalEditarColegio(idCol);
+            } else throw new Error(data.error || "Error al actualizar usuario.");
+        } catch (e) { mostrarAlerta(e.message); }
+    }
+
     async function cambiarEstadoColegio(idColegio, nuevoEstado) {
         try {
             const formData = new URLSearchParams();
             formData.append('action', 'cambiarEstadoColegio');
             formData.append('idColegio', idColegio);
             formData.append('nuevoEstado', nuevoEstado);
-
             const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
             const data = JSON.parse(await res.text());
-            if (data.exito) {
-                mostrarAlerta(data.mensaje);
-                cargarMenuSuperAdmin();
-            } else throw new Error(data.error || "Error al actualizar estado.");
+            if (data.exito) { mostrarAlerta(data.mensaje); cargarMenuSuperAdmin(); }
+            else throw new Error(data.error || "Error al actualizar estado.");
         } catch (e) { mostrarAlerta(e.message); }
     }
 
@@ -216,6 +395,15 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerPanelCoordinador&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
             estadoGlobal.seleccionesCoordinador = data.selecciones || [];
+            estadoGlobal.categoriasBaseColegio = data.categoriasBase || ['1ro Secundaria', '2do Secundaria', '3ro Secundaria', '4to Secundaria', '5to Secundaria'];
+            estadoGlobal.maxSeleccionesColegio = data.maxSelecciones || 0;
+
+            const lblPlan = document.getElementById("lblPlanSeleccionesCoord");
+            if (lblPlan) {
+                lblPlan.innerText = estadoGlobal.maxSeleccionesColegio > 0
+                    ? `(${estadoGlobal.seleccionesCoordinador.length}/${estadoGlobal.maxSeleccionesColegio})`
+                    : `(${estadoGlobal.seleccionesCoordinador.length})`;
+            }
 
             if (estadoGlobal.seleccionesCoordinador.length === 0) {
                 document.getElementById("contenedorSelecciones").innerHTML = "<p class='text-center text-slate-500 my-10'>Aún no hay selecciones creadas.</p>";
@@ -223,7 +411,7 @@
             }
 
             document.getElementById("contenedorSelecciones").innerHTML = estadoGlobal.seleccionesCoordinador.map(sel => `
-                <button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 border-slate-800 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left">
+                <button onclick="abrirDashboardCoordinador('${sel.idEquipo}')" class="w-full bg-white rounded-2xl shadow-md border-l-8 p-5 mb-4 flex justify-between items-center hover:shadow-lg transition transform active:scale-95 text-left" style="border-left-color: ${estadoGlobal.colorPrimario}">
                     <div>
                         <h3 class="font-black text-2xl uppercase tracking-tight">${sel.nombreEquipo}</h3>
                         <p class="text-xs text-slate-500 font-bold uppercase tracking-wider">${sel.categoria}</p>
@@ -275,8 +463,15 @@
     }
 
     function abrirModalCrearSeleccion() {
+        if (estadoGlobal.maxSeleccionesColegio > 0 && estadoGlobal.seleccionesCoordinador.length >= estadoGlobal.maxSeleccionesColegio) {
+            return mostrarAlerta(`Has alcanzado el límite de ${estadoGlobal.maxSeleccionesColegio} selección(es) contratadas. Contacta al administrador para ampliar tu plan.`);
+        }
         document.getElementById("nsNombre").value = "";
-        document.querySelectorAll('.check-categoria').forEach(chk => chk.checked = false);
+        const contCats = document.getElementById("nsContenedorCategorias");
+        contCats.innerHTML = estadoGlobal.categoriasBaseColegio.map(cat => `
+            <label class="flex items-center text-xs font-bold bg-white p-2 rounded-lg border border-slate-200 cursor-pointer">
+                <input type="checkbox" value="${cat}" class="check-categoria w-4 h-4 mr-2 shrink-0">${cat}
+            </label>`).join("");
         document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex');
     }
     function cerrarModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden'); }
@@ -330,22 +525,34 @@
         } catch (e) { sel.innerHTML = "<option value=''>Error al cargar</option>"; }
     }
 
-    function guardarNuevoDT() {
+    // CORREGIDO: Ahora usa fetch POST directo (no se queda colgado)
+    async function guardarNuevoDT() {
         const dniProfesor = document.getElementById("selNuevoDT").value;
         if (!dniProfesor) return mostrarAlerta("Seleccione un profesor de la lista.");
-        const btn = document.getElementById("btnGuardarDT"); btn.innerText = "Guardando..."; btn.disabled = true;
-        const callbackName = 'jsonpCallback_' + Math.round(100000 * Math.random());
-        window[callbackName] = function(data) {
+        const btn = document.getElementById("btnGuardarDT");
+        btn.innerText = "Guardando..."; btn.disabled = true;
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'asignarProfesorEquipo');
+            formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
+            formData.append('dniProfesor', dniProfesor);
+
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
             if (data.exito) {
                 const eq = estadoGlobal.seleccionesCoordinador.find(s => s.idEquipo === estadoGlobal.idEquipoSeleccionado);
                 if (eq) eq.profesor = document.getElementById("selNuevoDT").options[document.getElementById("selNuevoDT").selectedIndex].text;
-                mostrarAlerta("Entrenador asignado con éxito."); cerrarModuloCoordinador('moduloDT'); abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado);
-            } else mostrarAlerta(data.error || "Error al actualizar.");
-            btn.innerText = "💾 Guardar Cambios"; btn.disabled = false; delete window[callbackName];
-        };
-        const s = document.createElement('script');
-        s.src = `${URL_BACKEND}?action=asignarProfesorEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&dniProfesor=${encodeURIComponent(dniProfesor)}&callback=${callbackName}`;
-        document.body.appendChild(s);
+                mostrarAlerta(data.mensaje || "Entrenador asignado con éxito.");
+                cerrarModuloCoordinador('moduloDT');
+                abrirDashboardCoordinador(estadoGlobal.idEquipoSeleccionado);
+            } else throw new Error(data.error || "Error al asignar entrenador.");
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "💾 Guardar Cambios";
+            btn.disabled = false;
+        }
     }
 
     async function cargarModuloJugadores() {
@@ -405,7 +612,7 @@
     }
 
     // ==========================================
-    // 3. DASHBOARD DE CAMPEONATO Y JUGADORES (CON MINUTOS)
+    // 3. DASHBOARD, CAMPEONATOS, ROSTER, ENCUENTROS Y ASISTENCIA
     // ==========================================
     async function cargarDashboardEquipo(contenedorID) {
         const cont = document.getElementById(contenedorID);
@@ -423,9 +630,6 @@
         } catch (e) { cont.innerHTML = `<p class='text-center text-red-500 text-xs my-6'>Error al cargar métricas: ${e.message}</p>`; }
     }
 
-    // ==========================================
-    // 4. CAMPEONATOS (DT)
-    // ==========================================
     async function cargarCampeonatosProfe() {
         const cont = document.getElementById("listaCampeonatosProfe");
         cont.innerHTML = "<p class='text-center text-slate-500 my-10 animate-pulse'>Cargando campeonatos...</p>";
@@ -494,9 +698,6 @@
         } catch (e) { mostrarAlerta(e.message); } finally { btn.innerText = "💾 Actualizar Datos"; btn.disabled = false; }
     }
 
-    // ==========================================
-    // 5. SELECCIONADOS (FICHAS, PADRES, EDICIÓN Y BAJA)
-    // ==========================================
     async function cargarRosterProfe() {
         const grid = document.getElementById("gridSeleccionadosProfe");
         grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 animate-pulse'>Cargando plantilla...</p>";
@@ -623,9 +824,6 @@
         } catch (e) { btn.innerText = "+ Sumar"; btn.disabled = false; }
     }
 
-    // ==========================================
-    // 6. ENCUENTROS, DETALLE, EDICIÓN DE EVENTOS Y APROBACIÓN DEL DT
-    // ==========================================
     async function cargarModuloEncuentros(contenedorID) {
         contenedorEncuentrosActual = contenedorID;
         const contenedor = document.getElementById(contenedorID);
@@ -721,9 +919,6 @@
         } catch (e) { mostrarAlerta(e.message); btn.innerText = "✅ Aprobar Partido Oficialmente"; btn.disabled = false; }
     }
 
-    // ==========================================
-    // 7. ASISTENCIA Y PROGRAMACIÓN DE PARTIDOS
-    // ==========================================
     async function cargarModuloAsistencia(contenedorID) {
         const contenedor = document.getElementById(contenedorID);
         contenedor.innerHTML = "<p class='text-center text-slate-500 animate-pulse my-10'>Calculando asistencia...</p>";
@@ -816,6 +1011,7 @@
 
     function copiarLink() { const input = document.getElementById("linkGenerado"); input.select(); document.execCommand("copy"); mostrarAlerta("Enlace copiado al portapapeles."); }
 </script>
+
 <!-- ======================================================= -->
 <!-- MODALES GLOBALES -->
 <!-- ======================================================= -->
@@ -840,26 +1036,49 @@
             <button onclick="cerrarModalNuevoColegio()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
         </div>
 
-        <!-- Formulario de creación -->
         <div id="saFormCrear" class="flex flex-col flex-1 overflow-hidden">
             <div class="overflow-y-auto pr-1 space-y-3">
-                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre del Colegio</label><input type="text" id="saNomColegio" placeholder="Ej. Colegio San José" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label for="saInputLogoNuevo" class="cursor-pointer relative shrink-0">
+                        <img id="saPreviewLogoNuevo" src="https://placehold.co/150x150?text=Logo" class="w-16 h-16 rounded-xl object-cover border-2 border-white shadow">
+                        <span class="absolute -bottom-1 -right-1 bg-slate-900 text-white text-[10px] p-1 rounded-full">📷</span>
+                    </label>
+                    <input type="file" id="saInputLogoNuevo" accept="image/*" class="hidden" onchange="procesarLogoColegio(event, 'saPreviewLogoNuevo', 'nuevo')">
+                    <div class="flex-1 space-y-1.5">
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre del Colegio</label>
+                        <input type="text" id="saNomColegio" placeholder="Ej. Colegio San José" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold bg-white">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Color Primario</label><input type="color" id="saColorPrim" value="#0f172a" class="w-full h-10 rounded-xl border border-slate-200 cursor-pointer"></div>
+                    <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Color Secundario</label><input type="color" id="saColorSec" value="#eab308" class="w-full h-10 rounded-xl border border-slate-200 cursor-pointer"></div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Categorías Base (Separadas por coma)</label>
+                    <textarea id="saCatsBase" rows="2" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></textarea>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Máx. Selecciones Contratadas (Vacío = Ilimitado)</label>
+                    <input type="number" id="saMaxSel" placeholder="Ej. 3" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold">
+                </div>
+
                 <div class="pt-2 border-t border-slate-100">
                     <p class="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-2">Primer Usuario Coordinador</p>
                     <div class="space-y-2.5">
-                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">DNI del Coordinador</label><input type="number" id="saDniCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">DNI del Coordinador</label><input type="number" id="saDniCoord" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold"></div>
                         <div class="grid grid-cols-2 gap-2">
-                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="saNomCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
-                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="saApCoord" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="saNomCoord" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold"></div>
+                            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="saApCoord" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold"></div>
                         </div>
-                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp (Para enviar acceso)</label><input type="number" id="saTelCoord" placeholder="999888777" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
+                        <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp (Para enviar acceso)</label><input type="number" id="saTelCoord" placeholder="999888777" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold"></div>
                     </div>
                 </div>
             </div>
             <button id="btnGuardarNuevoColegio" onclick="guardarNuevoColegio()" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl mt-4 hover:bg-black transition shadow-lg">Crear Colegio y Coordinador</button>
         </div>
 
-        <!-- Pantalla de éxito con envío por WhatsApp -->
         <div id="saExitoCrear" class="hidden space-y-4 text-center">
             <div class="w-14 h-14 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-2xl">✅</div>
             <h4 class="font-black text-lg text-slate-800">¡Colegio Creado con Éxito!</h4>
@@ -873,6 +1092,61 @@
             </div>
             <a id="saExitoBtnWsp" href="#" target="_blank" class="w-full flex justify-center items-center gap-2 bg-[#25D366] text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-green-600 transition text-sm">💬 Enviar Credenciales por WhatsApp</a>
             <button onclick="cerrarModalNuevoColegio()" class="w-full bg-slate-100 text-slate-700 font-bold py-3 rounded-xl text-xs hover:bg-slate-200 transition">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Colegio (Branding, Plan y Múltiples Coordinadores) -->
+<div id="modalEditarColegio" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xl font-black"><span class="mr-2">⚙️</span> Editar Colegio</h3>
+            <button onclick="cerrarModalEditarColegio()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
+        </div>
+        <input type="hidden" id="edColId">
+        <div class="overflow-y-auto pr-1 space-y-3 flex-1">
+            <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <label for="edInputLogo" class="cursor-pointer relative shrink-0">
+                    <img id="edPreviewLogo" src="https://placehold.co/150x150?text=Logo" class="w-16 h-16 rounded-xl object-cover border-2 border-white shadow">
+                    <span class="absolute -bottom-1 -right-1 bg-blue-600 text-white text-[10px] p-1 rounded-full">📷</span>
+                </label>
+                <input type="file" id="edInputLogo" accept="image/*" class="hidden" onchange="procesarLogoColegio(event, 'edPreviewLogo', 'editar')">
+                <div class="flex-1">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nombre del Colegio</label>
+                    <input type="text" id="edColNombre" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold bg-white">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Color Primario</label><input type="color" id="edColColorPrim" class="w-full h-10 rounded-xl border border-slate-200 cursor-pointer"></div>
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Color Secundario</label><input type="color" id="edColColorSec" class="w-full h-10 rounded-xl border border-slate-200 cursor-pointer"></div>
+            </div>
+
+            <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Categorías Base (Separadas por coma)</label>
+                <textarea id="edColCatsBase" rows="2" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></textarea>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Máx. Selecciones (Vacío = Ilimitado)</label>
+                <input type="number" id="edColMaxSel" class="w-full border-2 border-slate-200 p-2 rounded-xl text-sm font-bold">
+            </div>
+
+            <button id="btnGuardarEdicionCol" onclick="guardarEdicionColegio()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow text-sm">💾 Guardar Configuración</button>
+
+            <div class="pt-3 border-t border-slate-200 space-y-2">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-wider">👔 Coordinadores del Colegio</p>
+                <div id="edListaCoords" class="space-y-1.5"></div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-2 mt-2">
+                    <p class="text-[10px] font-bold text-blue-700 uppercase">+ Agregar otro Coordinador</p>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <input type="number" id="edNewCoordDni" placeholder="DNI" class="border border-slate-300 rounded-lg p-1.5 text-xs font-bold bg-white">
+                        <input type="number" id="edNewCoordTel" placeholder="WhatsApp" class="border border-slate-300 rounded-lg p-1.5 text-xs font-bold bg-white">
+                        <input type="text" id="edNewCoordNom" placeholder="Nombres" class="border border-slate-300 rounded-lg p-1.5 text-xs font-bold bg-white">
+                        <input type="text" id="edNewCoordAp" placeholder="Apellidos" class="border border-slate-300 rounded-lg p-1.5 text-xs font-bold bg-white">
+                    </div>
+                    <button id="btnAgregarCoordExtra" onclick="agregarCoordinadorExtra()" class="w-full bg-slate-800 text-white font-bold py-2 rounded-lg text-xs hover:bg-black transition">+ Agregar Coordinador</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -943,9 +1217,9 @@
     </div>
 </div>
 
-<!-- Modal Nueva Selección (Coordinador) -->
+<!-- Modal Nueva Selección (Coordinador - Categorías dinámicas del Colegio) -->
 <div id="modalNuevaSeleccion" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
-    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center mb-4">
             <h3 class="text-xl font-black"><span class="mr-2">🏆</span> Nueva Selección</h3>
             <button onclick="cerrarModalCrearSeleccion()" class="text-slate-400 bg-slate-100 p-2 rounded-full">✕</button>
@@ -953,14 +1227,8 @@
         <div class="overflow-y-auto">
             <label class="block text-[11px] font-bold text-slate-500 uppercase mb-1">Nombre (Ej. Selección Mayores)</label>
             <input type="text" id="nsNombre" class="w-full border-2 border-slate-200 p-3 rounded-xl mb-4 text-sm font-bold">
-            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">Categorías / Bases Permitidas (Combinables)</label>
-            <div class="grid grid-cols-3 gap-2 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="1ro Secundaria" class="check-categoria w-4 h-4 mr-2">1ro Sec</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="2do Secundaria" class="check-categoria w-4 h-4 mr-2">2do Sec</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="3ro Secundaria" class="check-categoria w-4 h-4 mr-2">3ro Sec</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="4to Secundaria" class="check-categoria w-4 h-4 mr-2">4to Sec</label>
-                <label class="flex items-center text-xs font-bold"><input type="checkbox" value="5to Secundaria" class="check-categoria w-4 h-4 mr-2">5to Sec</label>
-            </div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">Categorías Base Permitidas (Combinables)</label>
+            <div id="nsContenedorCategorias" class="grid grid-cols-2 gap-2 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200"></div>
         </div>
         <button id="btnGuardarSeleccion" onclick="guardarNuevaSeleccion()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl mt-2 hover:bg-slate-900 transition">Crear Selección</button>
     </div>
@@ -983,7 +1251,7 @@
     </div>
 </div>
 
-<!-- Modal Nuevo Jugador (DT - Incluye Datos del Padre) -->
+<!-- Modal Nuevo Jugador (DT) -->
 <div id="modalNuevoJugador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center mb-4">
@@ -1020,7 +1288,7 @@
     </div>
 </div>
 
-<!-- Modal Editar Ficha de Jugador (DT - Incluye Datos del Padre) -->
+<!-- Modal Editar Ficha de Jugador (DT) -->
 <div id="modalEditarJugador" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 items-center justify-center p-4">
     <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center mb-4">
@@ -1113,24 +1381,27 @@
 
     <!-- PANEL COORDINADOR -->
     <div id="coordinadorMainView" class="hidden">
-        <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
-            <h2 class="text-2xl font-black">Gerencia Deportiva</h2>
-            <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Panel de Coordinador</p>
+        <div id="headerCoordMain" class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6 flex items-center gap-3">
+            <img id="logoColegioCoord" src="" class="hidden w-12 h-12 rounded-xl object-cover bg-white p-0.5 shrink-0">
+            <div>
+                <h2 id="lblColegioCoord" class="text-xl font-black leading-tight">Gerencia Deportiva</h2>
+                <p class="text-[11px] text-white/75 font-bold uppercase tracking-wider">Panel de Coordinador</p>
+            </div>
         </div>
         <div class="px-4 flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-800 text-lg">Selecciones</h3>
+            <h3 class="font-bold text-slate-800 text-lg">Selecciones <span id="lblPlanSeleccionesCoord" class="text-xs text-slate-400"></span></h3>
             <button onclick="abrirModalCrearSeleccion()" class="text-xs bg-slate-800 text-white font-bold px-4 py-2 rounded-xl shadow hover:bg-slate-900 transition">+ Crear Nueva</button>
         </div>
         <div id="contenedorSelecciones" class="px-4"></div>
     </div>
 
     <div id="dashboardCoordinadorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
-        <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuCoordinador()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">
+        <div id="headerCoordDash" class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
+            <button onclick="volverAMenuCoordinador()" class="text-white/70 font-bold hover:text-white flex items-center text-sm mb-3 transition">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver
             </button>
             <h2 id="dashCoordNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
-            <p id="dashCoordCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
+            <p id="dashCoordCategoriaEquipo" class="text-xs text-white/75 font-bold uppercase tracking-wider"></p>
         </div>
         <div class="p-4 mt-2">
             <div class="bg-white rounded-xl shadow-sm border p-4 mb-5 flex justify-between items-center">
@@ -1151,21 +1422,24 @@
 
     <!-- PANEL PROFESOR / DT -->
     <div id="profesorMainView" class="hidden">
-        <div class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6">
-            <h2 class="text-2xl font-black tracking-tight">Comando Técnico</h2>
-            <p class="text-xs text-slate-400 font-bold uppercase tracking-wider">Panel de Entrenador</p>
+        <div id="headerProfeMain" class="bg-slate-900 text-white p-5 rounded-b-3xl shadow-lg mb-6 flex items-center gap-3">
+            <img id="logoColegioProfe" src="" class="hidden w-12 h-12 rounded-xl object-cover bg-white p-0.5 shrink-0">
+            <div>
+                <h2 id="lblColegioProfe" class="text-xl font-black leading-tight">Comando Técnico</h2>
+                <p class="text-[11px] text-white/75 font-bold uppercase tracking-wider">Panel de Entrenador</p>
+            </div>
         </div>
         <div class="px-4 mb-4"><h3 class="font-bold text-slate-800 text-lg">Mis Equipos a Cargo</h3></div>
         <div id="contenedorEquiposProfesor" class="px-4"></div>
     </div>
 
     <div id="dashboardProfesorView" class="hidden absolute top-0 left-0 w-full bg-gray-100 min-h-screen z-10">
-        <div class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
-            <button onclick="volverAMenuProfesor()" class="text-slate-400 font-bold hover:text-white flex items-center text-sm mb-3 transition">
+        <div id="headerProfeDash" class="bg-slate-900 text-white p-4 sticky top-0 shadow-md">
+            <button onclick="volverAMenuProfesor()" class="text-white/70 font-bold hover:text-white flex items-center text-sm mb-3 transition">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>Volver
             </button>
             <h2 id="dashProfeNombreEquipo" class="font-black text-2xl uppercase tracking-tight">Cargando...</h2>
-            <p id="dashProfeCategoriaEquipo" class="text-xs text-slate-400 font-bold uppercase tracking-wider"></p>
+            <p id="dashProfeCategoriaEquipo" class="text-xs text-white/75 font-bold uppercase tracking-wider"></p>
         </div>
         <div class="p-4 mt-2">
             <div class="grid grid-cols-2 gap-3">
@@ -1351,3 +1625,5 @@
 
 </body>
 </html>
+<!-- === FIN COMPLETO DEL ARCHIVO index.html (v1 - 2026-11-20) === -->
+Página 1 de 26
