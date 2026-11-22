@@ -58,6 +58,33 @@
             .catch(() => mostrarAlerta("No se pudo copiar automáticamente."));
     }
 
+    function ordenarPorCamiseta(lista) {
+        return [...(lista || [])].sort((a, b) => {
+            const na = parseInt(a.camiseta, 10);
+            const nb = parseInt(b.camiseta, 10);
+            const aNum = !isNaN(na);
+            const bNum = !isNaN(nb);
+            if (aNum && bNum && na !== nb) return na - nb;
+            if (aNum && !bNum) return -1;
+            if (!aNum && bNum) return 1;
+            return (a.nombre || '').localeCompare(b.nombre || '');
+        });
+    }
+
+    function badgePosicionHtml(pos) {
+        const p = (pos || '').trim();
+        if (!p) return '<span class="inline-block bg-slate-100 text-slate-400 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Sin posición</span>';
+        const estilos = {
+            'Arquero': 'bg-amber-100 text-amber-800',
+            'Defensa Central': 'bg-blue-100 text-blue-800',
+            'Lateral': 'bg-sky-100 text-sky-800',
+            'Volante': 'bg-purple-100 text-purple-800',
+            'Delantero': 'bg-green-100 text-green-800'
+        };
+        const cls = estilos[p] || 'bg-slate-100 text-slate-700';
+        return `<span class="inline-block ${cls} text-[9px] font-black px-2 py-0.5 rounded-full uppercase">${p}</span>`;
+    }
+
     function aplicarBrandingColegio() {
         const bg = estadoGlobal.colorPrimario || "#0f172a";
         ['headerCoordMain', 'headerCoordDash', 'headerProfeMain', 'headerProfeDash'].forEach(id => {
@@ -600,7 +627,8 @@
             const res = await fetch(`${URL_BACKEND}?action=obtenerJugadoresEquipo&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}`);
             const data = await res.json();
             if (!data.jugadores || data.jugadores.length === 0) { contenedor.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10'>Sin jugadores oficiales.</p>"; return; }
-            contenedor.innerHTML = data.jugadores.map(j => `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p></div></div>`).join("");
+            const ordenados = ordenarPorCamiseta(data.jugadores);
+            contenedor.innerHTML = ordenados.map(j => `<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2 py-1 text-xs rounded-bl-xl z-10">${j.camiseta}</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><div class="mt-1">${badgePosicionHtml(j.posicion)}</div><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${j.grado}</p></div></div>`).join("");
         } catch (e) { contenedor.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
     }
 
@@ -663,7 +691,7 @@
             const avisoPend = r.pendientes > 0 ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 mb-4 text-xs font-bold flex items-center gap-2"><span>⏳</span> Hay ${r.pendientes} partido(s) pendiente(s) de aprobación del DT.</div>` : "";
             const htmlJug = (!data.jugadores || data.jugadores.length === 0)
                 ? "<p class='text-center text-slate-400 text-xs py-6'>Sin jugadores registrados aún.</p>"
-                : `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200"><th class="p-2.5 font-bold">Jugador</th><th class="p-1.5 text-center font-bold">PJ</th><th class="p-1.5 text-center font-bold text-indigo-600">Min</th><th class="p-1.5 text-center font-bold">⚽</th><th class="p-1.5 text-center font-bold">👟</th><th class="p-1.5 text-center font-bold">🟨</th><th class="p-1.5 text-center font-bold">🟥</th></tr></thead><tbody>${data.jugadores.map(j => `<tr class="border-b border-slate-100 text-xs"><td class="p-2 flex items-center gap-2"><img src="${j.fotoUrl}" class="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0"><span class="font-bold text-slate-800 truncate max-w-[95px]">${j.nombre}</span></td><td class="p-1.5 text-center font-bold text-slate-600">${j.pj}</td><td class="p-1.5 text-center font-black text-indigo-600">${j.minutos || 0}'</td><td class="p-1.5 text-center font-black text-green-600">${j.goles}</td><td class="p-1.5 text-center font-bold text-blue-600">${j.asistencias}</td><td class="p-1.5 text-center font-bold text-amber-500">${j.amarillas}</td><td class="p-1.5 text-center font-bold text-red-500">${j.rojas}</td></tr>`).join("")}</tbody></table></div>`;
+                : `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-slate-50 text-[10px] text-slate-500 uppercase border-b border-slate-200"><th class="p-2.5 font-bold">Jugador</th><th class="p-1.5 text-center font-bold">PJ</th><th class="p-1.5 text-center font-bold text-indigo-600">Min</th><th class="p-1.5 text-center font-bold">⚽</th><th class="p-1.5 text-center font-bold">👟</th><th class="p-1.5 text-center font-bold">🟨</th><th class="p-1.5 text-center font-bold">🟥</th></tr></thead><tbody>${data.jugadores.map(j => `<tr class="border-b border-slate-100 text-xs"><td class="p-2 flex items-center gap-2"><img src="${j.fotoUrl}" class="w-7 h-7 rounded-full object-cover bg-slate-100 shrink-0"><div class="min-w-0"><p class="font-bold text-slate-800 truncate max-w-[95px] leading-tight">${j.nombre}</p>${j.posicion ? `<p class="text-[9px] font-bold text-slate-400 uppercase leading-tight">${j.posicion}</p>` : ''}</div></td><td class="p-1.5 text-center font-bold text-slate-600">${j.pj}</td><td class="p-1.5 text-center font-black text-indigo-600">${j.minutos || 0}'</td><td class="p-1.5 text-center font-black text-green-600">${j.goles}</td><td class="p-1.5 text-center font-bold text-blue-600">${j.asistencias}</td><td class="p-1.5 text-center font-bold text-amber-500">${j.amarillas}</td><td class="p-1.5 text-center font-bold text-red-500">${j.rojas}</td></tr>`).join("")}</tbody></table></div>`;
             cont.innerHTML = `${avisoPend}<div class="grid grid-cols-2 gap-3 mb-3"><div class="bg-white p-4 rounded-xl shadow-sm text-center border border-slate-200"><p class="text-3xl font-black text-slate-800">${r.pj}</p><p class="text-[10px] font-bold uppercase text-slate-400 mt-1">Partidos Jugados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-green-500"><p class="text-3xl font-black text-green-600">${r.pg}</p><p class="text-[10px] font-bold uppercase text-green-600 mt-1">Ganados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-amber-400"><p class="text-3xl font-black text-amber-500">${r.pe}</p><p class="text-[10px] font-bold uppercase text-amber-500 mt-1">Empatados</p></div><div class="bg-white p-4 rounded-xl shadow-sm text-center border-b-4 border-red-500"><p class="text-3xl font-black text-red-500">${r.pp}</p><p class="text-[10px] font-bold uppercase text-red-500 mt-1">Perdidos</p></div></div><div class="grid grid-cols-3 gap-2 mb-5"><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gf}</p><p class="text-[9px] font-bold uppercase text-slate-400">Goles a Favor</p></div><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-slate-800">${r.gc}</p><p class="text-[9px] font-bold uppercase text-slate-400">En Contra</p></div><div class="bg-white p-3 rounded-xl border border-slate-200 text-center"><p class="text-xl font-black text-blue-600">${difTxt}</p><p class="text-[9px] font-bold uppercase text-slate-400">Diferencia</p></div></div><h4 class="text-xs font-black uppercase text-slate-500 tracking-wider mb-2">Estadísticas por Jugador</h4>${htmlJug}`;
         } catch (e) { cont.innerHTML = `<p class='text-center text-red-500 text-xs my-6'>Error al cargar métricas: ${e.message}</p>`; }
     }
@@ -743,9 +771,9 @@
             const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
             const res = await fetch(`${URL_BACKEND}?action=obtenerRoster&idEquipo=${encodeURIComponent(estadoGlobal.idEquipoSeleccionado)}&grados=${encodeURIComponent(eqInfo.categoria)}&idColegio=${encodeURIComponent(estadoGlobal.idColegio)}`);
             const data = await res.json();
-            rosterActual = { seleccionados: data.seleccionados || [], disponibles: data.disponibles || [] };
+            rosterActual = { seleccionados: ordenarPorCamiseta(data.seleccionados || []), disponibles: ordenarPorCamiseta(data.disponibles || []) };
             if (rosterActual.seleccionados.length === 0) { grid.innerHTML = "<p class='col-span-2 text-center text-slate-500 my-10 text-xs'>Aún no hay jugadores en esta selección.</p>"; return; }
-            grid.innerHTML = rosterActual.seleccionados.map(j => `<div onclick="abrirModalEditarJugador('${j.dni}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative cursor-pointer hover:shadow-md active:scale-95 transition"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2.5 py-1 text-xs rounded-bl-xl z-10">${j.camiseta || '-'}</span><span class="absolute top-2 left-2 bg-white/90 text-slate-700 p-1 rounded-full text-[10px] shadow">✏️</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p></div></div>`).join("");
+            grid.innerHTML = rosterActual.seleccionados.map(j => `<div onclick="abrirModalEditarJugador('${j.dni}')" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative cursor-pointer hover:shadow-md active:scale-95 transition"><span class="absolute top-0 right-0 bg-blue-600 text-white font-black px-2.5 py-1 text-xs rounded-bl-xl z-10">${j.camiseta || '-'}</span><span class="absolute top-2 left-2 bg-white/90 text-slate-700 p-1 rounded-full text-[10px] shadow">✏️</span><img src="${j.fotoUrl}" class="w-full h-32 object-cover bg-slate-100"><div class="p-3 text-center"><p class="font-bold text-slate-800 text-sm leading-tight truncate">${j.nombre}</p><div class="mt-1">${badgePosicionHtml(j.posicion)}</div><p class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider truncate">${j.grado}</p></div></div>`).join("");
         } catch (e) { grid.innerHTML = "<p class='col-span-2 text-center text-red-500'>Error de conexión.</p>"; }
     }
 
@@ -771,7 +799,7 @@
     function abrirModalNuevoJugador() {
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
         document.getElementById('njGrado').innerHTML = String(eqInfo.categoria || '').split(',').map(g => g.trim()).filter(Boolean).map(g => `<option value="${g}">${g}</option>`).join('');
-        ['njDni', 'njNombres', 'njApellidos', 'njCamiseta', 'njInputFoto', 'njNombrePadre', 'njTelPadre'].forEach(id => document.getElementById(id).value = "");
+        ['njDni', 'njNombres', 'njApellidos', 'njCamiseta', 'njPosicion', 'njInputFoto', 'njNombrePadre', 'njTelPadre'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Foto";
         base64FotoNuevo = "";
         document.getElementById('modalNuevoJugador').classList.replace('hidden', 'flex');
@@ -789,6 +817,7 @@
             formData.append('apellidos', document.getElementById('njApellidos').value.trim());
             formData.append('grado', document.getElementById('njGrado').value);
             formData.append('camiseta', document.getElementById('njCamiseta').value.trim());
+            formData.append('posicion', document.getElementById('njPosicion').value);
             formData.append('nombrePadre', document.getElementById('njNombrePadre').value.trim());
             formData.append('telefonoPadre', document.getElementById('njTelPadre').value.trim());
             formData.append('idColegio', estadoGlobal.idColegio);
@@ -805,8 +834,15 @@
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
         document.getElementById('ejGrado').innerHTML = String(eqInfo.categoria || '').split(',').map(g => g.trim()).filter(Boolean).map(g => `<option value="${g}" ${g === String(j.grado || '').trim() ? 'selected' : ''}>${g}</option>`).join('');
         document.getElementById('ejDni').value = j.dni; document.getElementById('ejNombres').value = j.nombres; document.getElementById('ejApellidos').value = j.apellidos;
-        document.getElementById('ejCamiseta').value = j.camiseta || ''; document.getElementById('ejNombrePadre').value = j.nombrePadre || ''; document.getElementById('ejTelPadre').value = j.telefonoPadre || '';
+        document.getElementById('ejCamiseta').value = j.camiseta || ''; document.getElementById('ejPosicion').value = j.posicion || ''; document.getElementById('ejNombrePadre').value = j.nombrePadre || ''; document.getElementById('ejTelPadre').value = j.telefonoPadre || '';
         document.getElementById('ejPreviewFoto').src = j.fotoUrl; document.getElementById('ejInputFoto').value = ""; document.getElementById('ejDetalleBaja').value = "";
+        const contHist = document.getElementById('ejHistorialPosiciones');
+        const hist = j.historialPosiciones || [];
+        if (hist.length === 0) {
+            contHist.innerHTML = "<p class='text-[10px] text-slate-400 italic'>Sin cambios de posición registrados aún.</p>";
+        } else {
+            contHist.innerHTML = hist.map(h => `<div class='flex items-center justify-between text-[10px] py-1 border-b border-slate-100 last:border-0'><span class='font-bold text-slate-700'>${h.anterior} → <span class='text-blue-700'>${h.nueva}</span></span><span class='text-slate-400 font-mono text-[9px]'>${h.fecha}</span></div>`).join("");
+        }
         document.getElementById('bloqueMotivoBaja').classList.add('hidden'); base64FotoEditar = "";
         document.getElementById('modalEditarJugador').classList.replace('hidden', 'flex');
     }
@@ -821,6 +857,7 @@
             formData.append('action', 'editarJugador'); formData.append('dni', document.getElementById('ejDni').value);
             formData.append('nombres', nom); formData.append('apellidos', document.getElementById('ejApellidos').value.trim());
             formData.append('grado', document.getElementById('ejGrado').value); formData.append('camiseta', document.getElementById('ejCamiseta').value.trim());
+            formData.append('posicion', document.getElementById('ejPosicion').value);
             formData.append('nombrePadre', document.getElementById('ejNombrePadre').value.trim()); formData.append('telefonoPadre', document.getElementById('ejTelPadre').value.trim());
             formData.append('idEquipo', estadoGlobal.idEquipoSeleccionado);
             if (base64FotoEditar) formData.append('fotoBase64', base64FotoEditar);
@@ -1358,7 +1395,20 @@
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="njNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="njApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
             </div>
-            <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Categoría Base</label><select id="njGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select></div>
+            <div class="grid grid-cols-2 gap-2">
+                <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Categoría Base</label><select id="njGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-xs font-bold bg-white"></select></div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase">Posición</label>
+                    <select id="njPosicion" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-xs font-bold bg-white">
+                        <option value="">Sin definir</option>
+                        <option value="Arquero">Arquero</option>
+                        <option value="Defensa Central">Defensa Central</option>
+                        <option value="Lateral">Lateral</option>
+                        <option value="Volante">Volante</option>
+                        <option value="Delantero">Delantero</option>
+                    </select>
+                </div>
+            </div>
             <div class="pt-2 border-t border-slate-100">
                 <p class="text-[10px] font-black text-green-700 uppercase tracking-wider mb-2">👨‍👩‍👦 Contacto Padre / Apoderado</p>
                 <div class="grid grid-cols-2 gap-2">
@@ -1392,6 +1442,17 @@
                 <div class="col-span-2"><label class="block text-[10px] font-bold text-slate-500 uppercase">Grado / Base</label><select id="ejGrado" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white"></select></div>
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Dorsal</label><input type="number" id="ejCamiseta" placeholder="N°" class="w-full border-2 border-blue-200 bg-blue-50 p-2.5 rounded-xl text-sm font-black text-center text-blue-800"></div>
             </div>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-500 uppercase">Posición en Campo</label>
+                <select id="ejPosicion" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold bg-white">
+                    <option value="">Sin definir</option>
+                    <option value="Arquero">Arquero</option>
+                    <option value="Defensa Central">Defensa Central</option>
+                    <option value="Lateral">Lateral</option>
+                    <option value="Volante">Volante</option>
+                    <option value="Delantero">Delantero</option>
+                </select>
+            </div>
             <div class="grid grid-cols-2 gap-2">
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombres</label><input type="text" id="ejNombres" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
                 <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Apellidos</label><input type="text" id="ejApellidos" class="w-full border-2 border-slate-200 p-2.5 rounded-xl text-sm font-bold"></div>
@@ -1402,6 +1463,10 @@
                     <div><label class="block text-[10px] font-bold text-slate-500 uppercase">Nombre Padre</label><input type="text" id="ejNombrePadre" placeholder="Ej. Carlos" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></div>
                     <div><label class="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp</label><input type="number" id="ejTelPadre" placeholder="999888777" class="w-full border-2 border-slate-200 p-2 rounded-xl text-xs font-bold"></div>
                 </div>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">🕒 Historial de Posiciones</p>
+                <div id="ejHistorialPosiciones" class="max-h-24 overflow-y-auto"></div>
             </div>
             <button id="btnGuardarEdicion" onclick="guardarEdicionJugador()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl mt-2 hover:bg-blue-700 transition shadow">💾 Guardar Cambios</button>
             <button onclick="document.getElementById('bloqueMotivoBaja').classList.toggle('hidden')" class="w-full bg-red-50 text-red-600 font-bold py-2.5 rounded-xl hover:bg-red-100 transition text-xs">🗑️ Quitar de esta Selección</button>
