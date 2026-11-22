@@ -12,6 +12,7 @@
     const URL_BACKEND = "https://script.google.com/macros/s/AKfycbxZ3I-TpP19nuQ5Lls_kEVi1CL7Fqg2V3-hY7yeYBgbCCU9nAkbtS2xOpkHEzmKTC2hQg/exec";
     const urlParams = new URLSearchParams(window.location.search);
     const TOKEN = urlParams.get('token') || "";
+    const STORAGE_KEY = TOKEN ? `mesa_control_${TOKEN}` : "";
 
     let estado = {
         rival: "Rival",
@@ -21,9 +22,76 @@
         golesRival: 0,
         fase: "PREVIA",         // PREVIA | 1T | ENTRETIEMPO | 2T | FINALIZADO
         segundos: 0,
+        inicioPeriodoMs: null,  // Hora exacta (Date.now()) de inicio del tiempo actual
         timerInterval: null,
         jugadorActivoDni: null
     };
+
+    let wakeLock = null;
+
+    // ==========================================
+    // PERSISTENCIA LOCAL (RESPALDO ANTE BLOQUEO/RECARGA)
+    // ==========================================
+    function guardarEstadoLocal() {
+        if (!STORAGE_KEY) return;
+        try {
+            const copia = {
+                rival: estado.rival,
+                jugadores: estado.jugadores,
+                eventos: estado.eventos,
+                golesPropio: estado.golesPropio,
+                golesRival: estado.golesRival,
+                fase: estado.fase,
+                segundos: estado.segundos,
+                inicioPeriodoMs: estado.inicioPeriodoMs
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(copia));
+        } catch (e) {}
+    }
+
+    function cargarEstadoLocal() {
+        if (!STORAGE_KEY) return null;
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function limpiarEstadoLocal() {
+        if (!STORAGE_KEY) return;
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    }
+
+    // ==========================================
+    // MANTENER PANTALLA ENCENDIDA (WAKE LOCK)
+    // ==========================================
+    async function activarWakeLock() {
+        try {
+            if ('wakeLock' in navigator && !wakeLock) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                wakeLock.addEventListener('release', () => { wakeLock = null; });
+            }
+        } catch (e) {}
+    }
+
+    async function liberarWakeLock() {
+        try {
+            if (wakeLock) {
+                await wakeLock.release();
+                wakeLock = null;
+            }
+        } catch (e) {}
+    }
+
+    // Recalcular reloj exacto al desbloquear el celular o volver a la pestaña
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && (estado.fase === "1T" || estado.fase === "2T")) {
+            actualizarReloj();
+            activarWakeLock();
+        }
+    });
 
     window.onload = async () => {
         if (!TOKEN) {
@@ -34,6 +102,7 @@
             const resVal = await fetch(`${URL_BACKEND}?action=validarToken&token=${encodeURIComponent(TOKEN)}`);
             const dataVal = await resVal.json();
             if (!dataVal.valido) {
+                limpiarEstadoLocal();
                 mostrarErrorPantalla("Este enlace ya fue cerrado o no es válido.");
                 return;
             }
@@ -42,17 +111,33 @@
             const dataConv = await resConv.json();
             if (dataConv.error) throw new Error(dataConv.error);
 
-            estado.rival = dataConv.rival || "Rival";
-            estado.jugadores = (dataConv.jugadores || []).map(j => ({
-                ...j,
-                dni: j.dni.toString().trim(),
-                enCancha: false,
-                titularInicial: false
-            }));
+            const guardado = cargarEstadoLocal();
+            if (guardado && Array.isArray(guardado.jugadores) && guardado.jugadores.length > 0) {
+                estado.rival = guardado.rival || dataConv.rival || "Rival";
+                estado.jugadores = guardado.jugadores;
+                estado.eventos = guardado.eventos || [];
+                estado.golesPropio = guardado.golesPropio || 0;
+                estado.golesRival = guardado.golesRival || 0;
+                estado.fase = guardado.fase || "PREVIA";
+                estado.segundos = guardado.segundos || 0;
+                estado.inicioPeriodoMs = guardado.inicioPeriodoMs || null;
+            } else {
+                estado.rival = dataConv.rival || "Rival";
+                estado.jugadores = (dataConv.jugadores || []).map(j => ({
+                    ...j,
+                    dni: j.dni.toString().trim(),
+                    enCancha: false,
+                    titularInicial: false
+                }));
+            }
 
             document.getElementById("lblRivalMarcador").innerText = estado.rival;
             document.getElementById("loaderView").classList.add("hidden");
             document.getElementById("appView").classList.remove("hidden");
+
+            if ((estado.fase === "1T" || estado.fase === "2T") && estado.inicioPeriodoMs) {
+                iniciarTimer(false);
+            }
             renderTodo();
         } catch (e) {
             mostrarErrorPantalla("Error al cargar el partido: " + e.message);
@@ -76,7 +161,7 @@
     }
 
     // ==========================================
-    // CONTROL DE TIEMPOS Y CRONÓMETRO
+    // CONTROL DE TIEMPOS Y CRONÓMETRO (BASADO EN HORA REAL)
     // ==========================================
     function formatReloj(seg) {
         const m = Math.floor(seg / 60).toString().padStart(2, '0');
@@ -84,7 +169,16 @@
         return `${m}:${s}`;
     }
 
+    function actualizarReloj() {
+        if (estado.inicioPeriodoMs) {
+            estado.segundos = Math.max(0, Math.floor((Date.now() - estado.inicioPeriodoMs) / 1000));
+        }
+        const el = document.getElementById("relojDisplay");
+        if (el) el.innerText = formatReloj(estado.segundos);
+    }
+
     function minutoActual() {
+        if (estado.inicioPeriodoMs) actualizarReloj();
         return Math.max(1, Math.floor(estado.segundos / 60) + 1);
     }
 
@@ -95,37 +189,44 @@
             estado.jugadores.forEach(j => { j.titularInicial = j.enCancha; });
             estado.fase = "1T";
             estado.segundos = 0;
-            iniciarTimer();
+            iniciarTimer(true);
         } else if (estado.fase === "1T") {
             detenerTimer();
             estado.fase = "ENTRETIEMPO";
         } else if (estado.fase === "ENTRETIEMPO") {
             estado.fase = "2T";
             estado.segundos = 0;
-            iniciarTimer();
+            iniciarTimer(true);
         } else if (estado.fase === "2T") {
             detenerTimer();
             estado.fase = "FINALIZADO";
             abrirModalCierre();
         }
+        guardarEstadoLocal();
         renderTodo();
     }
 
-    function iniciarTimer() {
-        detenerTimer();
-        estado.timerInterval = setInterval(() => {
-            estado.segundos++;
-            document.getElementById("relojDisplay").innerText = formatReloj(estado.segundos);
-        }, 1000);
+    function iniciarTimer(reiniciarInicio = true) {
+        if (estado.timerInterval) clearInterval(estado.timerInterval);
+        if (reiniciarInicio || !estado.inicioPeriodoMs) {
+            estado.inicioPeriodoMs = Date.now();
+        }
+        actualizarReloj();
+        activarWakeLock();
+        estado.timerInterval = setInterval(actualizarReloj, 1000);
     }
 
     function detenerTimer() {
+        actualizarReloj();
         if (estado.timerInterval) clearInterval(estado.timerInterval);
         estado.timerInterval = null;
+        estado.inicioPeriodoMs = null;
+        liberarWakeLock();
     }
 
     function ajustarGolRival(delta) {
         estado.golesRival = Math.max(0, estado.golesRival + delta);
+        guardarEstadoLocal();
         renderMarcador();
     }
 
@@ -142,7 +243,7 @@
     function renderMarcador() {
         document.getElementById("scorePropio").innerText = estado.golesPropio;
         document.getElementById("scoreRival").innerText = estado.golesRival;
-        document.getElementById("relojDisplay").innerText = formatReloj(estado.segundos);
+        actualizarReloj();
     }
 
     function renderControlFase() {
@@ -231,9 +332,10 @@
         const j = estado.jugadores.find(x => x.dni === dni);
         if (!j) return;
 
-        // En fase PREVIA o ENTRETIEMPO: tocar alterna entre Titular y Suplente
+        // En fase PREVIA: tocar alterna entre Titular y Suplente
         if (estado.fase === "PREVIA") {
             j.enCancha = !j.enCancha;
+            guardarEstadoLocal();
             renderJugadores();
             return;
         }
@@ -274,6 +376,7 @@
         });
 
         if (tipo === "Gol") estado.golesPropio++;
+        guardarEstadoLocal();
         cerrarModalAcciones();
         renderTodo();
     }
@@ -325,6 +428,7 @@
             nombreEntra: jEntra.nombre
         });
 
+        guardarEstadoLocal();
         cerrarModalAcciones();
         renderTodo();
     }
@@ -390,6 +494,7 @@
         }
 
         estado.eventos.splice(idx, 1);
+        guardarEstadoLocal();
         renderTodo();
     }
 
@@ -445,6 +550,8 @@
             const data = JSON.parse(await res.text());
             if (!data.exito) throw new Error(data.error || "Error al guardar el partido.");
 
+            limpiarEstadoLocal();
+            liberarWakeLock();
             cerrarModalCierre();
             document.getElementById("appView").innerHTML = `
                 <div class="bg-slate-900 border border-green-700 rounded-2xl p-8 text-center mt-10">
@@ -538,8 +645,8 @@
         <div id="bloqueBotonesEvento" class="grid grid-cols-2 gap-2.5">
             <button onclick="registrarAccion('Gol')" class="bg-green-600 hover:bg-green-500 text-white font-black py-3.5 rounded-xl">⚽ GOL</button>
             <button onclick="registrarAccion('Asistencia')" class="bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-xl">👟 P. Gol</button>
-            <button onclick="registrarAccion('Amarilla')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl">🟨 Amarilla</button>
-            <button onclick="registrarAccion('Roja')" class="bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl">🟥 Roja</button>
+            <button onclick="registrarAccion('Amarilla')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3.5 rounded-xl">🟨 Amarilla</button>
+            <button onclick="registrarAccion('Roja')" class="bg-red-600 hover:bg-red-500 text-white font-black py-3.5 rounded-xl">🟥 Roja</button>
             <button onclick="abrirSelectorSustitucion()" class="col-span-2 bg-slate-700 hover:bg-slate-600 text-white font-black py-3 rounded-xl mt-1">🔄 Sale / Hacer Cambio</button>
         </div>
 
