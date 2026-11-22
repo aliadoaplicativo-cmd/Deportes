@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -772,7 +770,7 @@
 
     function abrirModalNuevoJugador() {
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
-        document.getElementById('njGrado').innerHTML = eqInfo.categoria.split(',').map(g => `<option value="${g.trim()}">${g.trim()}</option>`).join('');
+        document.getElementById('njGrado').innerHTML = String(eqInfo.categoria || '').split(',').map(g => g.trim()).filter(Boolean).map(g => `<option value="${g}">${g}</option>`).join('');
         ['njDni', 'njNombres', 'njApellidos', 'njCamiseta', 'njInputFoto', 'njNombrePadre', 'njTelPadre'].forEach(id => document.getElementById(id).value = "");
         document.getElementById('previewFoto').src = "https://placehold.co/150x150?text=Foto";
         base64FotoNuevo = "";
@@ -805,7 +803,7 @@
     function abrirModalEditarJugador(dni) {
         const j = rosterActual.seleccionados.find(x => x.dni == dni); if (!j) return;
         const eqInfo = estadoGlobal.equiposProfesor.find(e => e.idEquipo === estadoGlobal.idEquipoSeleccionado);
-        document.getElementById('ejGrado').innerHTML = eqInfo.categoria.split(',').map(g => `<option value="${g.trim()}" ${g.trim() === j.grado ? 'selected' : ''}>${g.trim()}</option>`).join('');
+        document.getElementById('ejGrado').innerHTML = String(eqInfo.categoria || '').split(',').map(g => g.trim()).filter(Boolean).map(g => `<option value="${g}" ${g === String(j.grado || '').trim() ? 'selected' : ''}>${g}</option>`).join('');
         document.getElementById('ejDni').value = j.dni; document.getElementById('ejNombres').value = j.nombres; document.getElementById('ejApellidos').value = j.apellidos;
         document.getElementById('ejCamiseta').value = j.camiseta || ''; document.getElementById('ejNombrePadre').value = j.nombrePadre || ''; document.getElementById('ejTelPadre').value = j.telefonoPadre || '';
         document.getElementById('ejPreviewFoto').src = j.fotoUrl; document.getElementById('ejInputFoto').value = ""; document.getElementById('ejDetalleBaja').value = "";
@@ -1710,5 +1708,3 @@
 
 </body>
 </html>
-
-Mostrando Codigo_v2_2026-11-20.txt.
