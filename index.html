@@ -56,6 +56,7 @@
     let coordinadoresColegioActual = [];
     let profesoresColegio = [];
     let rosterActual = { seleccionados: [], disponibles: [], docsRequeridos: [] };
+    let catalogoDocsColegioActual = null;
     const CATALOGO_DOCS_ESTANDAR = [
         "Ficha de Inscripción",
         "Examen Médico",
@@ -65,6 +66,60 @@
         "Carta de Compromiso",
         "Constancia de Matrícula / Notas"
     ];
+
+
+    function getCatalogoDocsColegio_() {
+        if (Array.isArray(catalogoDocsColegioActual) && catalogoDocsColegioActual.length > 0) {
+            return catalogoDocsColegioActual;
+        }
+        if (Array.isArray(estadoGlobal.catalogoDocumentos) && estadoGlobal.catalogoDocumentos.length > 0) {
+            return estadoGlobal.catalogoDocumentos;
+        }
+        return CATALOGO_DOCS_ESTANDAR;
+    }
+
+    function renderChecksNuevaSeleccionDocs_(marcarDocsArr) {
+        const contDocs = document.getElementById("nsContenedorDocsReq");
+        if (!contDocs) return;
+        const cat = getCatalogoDocsColegio_();
+        const checkedSet = new Set((marcarDocsArr || []).map(x => normalizarTextoClient_(x)));
+        contDocs.innerHTML = cat.map(doc => `
+            <label class="flex items-center text-[11px] font-bold bg-white p-2 rounded-lg border border-slate-200 cursor-pointer">
+                <input type="checkbox" value="${doc}" class="check-ns-docreq w-4 h-4 mr-2 shrink-0" ${checkedSet.has(normalizarTextoClient_(doc)) ? 'checked' : ''}>${doc}
+            </label>`).join("");
+    }
+
+    async function agregarDocumentoNuevoColegioDesdeModal() {
+        const inp = document.getElementById("nsNuevoDocInput");
+        const val = (inp.value || '').trim();
+        if (!val) return mostrarAlerta("Escriba el nombre del nuevo documento para este colegio.");
+
+        const actualesMarcados = [];
+        document.querySelectorAll('.check-ns-docreq:checked').forEach(c => actualesMarcados.push(c.value));
+        actualesMarcados.push(val);
+
+        const btn = document.getElementById("btnAgregarDocNs");
+        btn.innerText = "..."; btn.disabled = true;
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'agregarDocumentoCatalogoColegio');
+            formData.append('idColegio', estadoGlobal.idColegio);
+            formData.append('nuevoDoc', val);
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.error) throw new Error(data.error);
+
+            catalogoDocsColegioActual = data.catalogo || [...getCatalogoDocsColegio_(), val];
+            estadoGlobal.catalogoDocumentos = catalogoDocsColegioActual;
+            inp.value = "";
+            renderChecksNuevaSeleccionDocs_(actualesMarcados);
+            mostrarAlerta(data.mensaje || "Documento agregado al catálogo del colegio.");
+        } catch (e) {
+            mostrarAlerta(e.message);
+        } finally {
+            btn.innerText = "Añadir"; btn.disabled = false;
+        }
+    }
 
     function badgeSemaforoHtml(sem) {
         if (!sem || !sem.total || sem.total === 0) {
@@ -197,6 +252,8 @@
             estadoGlobal.colorSecundario = data.colorSecundario || "#eab308";
             estadoGlobal.deportesHabilitados = data.deportesHabilitados || ["Fútbol", "Vóley"];
             estadoGlobal.deportesAsignados = data.deportesAsignados || estadoGlobal.deportesHabilitados;
+            estadoGlobal.catalogoDocumentos = data.catalogoDocumentos || CATALOGO_DOCS_ESTANDAR;
+            catalogoDocsColegioActual = [...estadoGlobal.catalogoDocumentos];
 
             document.getElementById("loginView").classList.add("hidden");
 
@@ -585,6 +642,10 @@
             estadoGlobal.maxSeleccionesColegio = data.maxSelecciones || 0;
             estadoGlobal.deportesHabilitados = data.deportesHabilitados || estadoGlobal.deportesHabilitados;
             estadoGlobal.deportesAsignados = data.deportesPermitidos || estadoGlobal.deportesAsignados;
+            if (Array.isArray(data.catalogoDocumentos) && data.catalogoDocumentos.length > 0) {
+                estadoGlobal.catalogoDocumentos = data.catalogoDocumentos;
+                catalogoDocsColegioActual = [...data.catalogoDocumentos];
+            }
 
             const deportesVisibles = estadoGlobal.deportesAsignados;
             if (deportesVisibles.length === 0) {
@@ -775,14 +836,9 @@
             <label class="flex items-center text-xs font-bold bg-white p-2 rounded-lg border border-slate-200 cursor-pointer">
                 <input type="checkbox" value="${cat}" class="check-categoria w-4 h-4 mr-2 shrink-0">${cat}
             </label>`).join("");
-        const contDocs = document.getElementById("nsContenedorDocsReq");
-        if (contDocs) {
-            const defChecked = ["Ficha de Inscripción", "Examen Médico", "Autorización de Padres"];
-            contDocs.innerHTML = CATALOGO_DOCS_ESTANDAR.map(doc => `
-                <label class="flex items-center text-[11px] font-bold bg-white p-2 rounded-lg border border-slate-200 cursor-pointer">
-                    <input type="checkbox" value="${doc}" class="check-ns-docreq w-4 h-4 mr-2 shrink-0" ${defChecked.includes(doc) ? 'checked' : ''}>${doc}
-                </label>`).join("");
-        }
+        const inpNsDoc = document.getElementById("nsNuevoDocInput");
+        if (inpNsDoc) inpNsDoc.value = "";
+        renderChecksNuevaSeleccionDocs_(["Ficha de Inscripción", "Examen Médico", "Autorización de Padres"]);
         document.getElementById('modalNuevaSeleccion').classList.replace('hidden', 'flex');
     }
     function cerrarModalCrearSeleccion() { document.getElementById('modalNuevaSeleccion').classList.replace('flex', 'hidden'); }
@@ -1985,7 +2041,7 @@
         if (selTipo) {
             const vistos = new Set();
             const opciones = [];
-            [...reqs, ...CATALOGO_DOCS_ESTANDAR, "Otro Documento"].forEach(t => {
+            [...reqs, ...getCatalogoDocsColegio_(), "Otro Documento"].forEach(t => {
                 const k = normalizarTextoClient_(t);
                 if (!vistos.has(k)) {
                     vistos.add(k);
@@ -2170,7 +2226,7 @@
         const cont = document.getElementById('cfgDocsListaChecks');
         const vistos = new Set();
         const todos = [];
-        [...CATALOGO_DOCS_ESTANDAR, ...listaDocsReqEditando].forEach(d => {
+        [...getCatalogoDocsColegio_(), ...listaDocsReqEditando].forEach(d => {
             const k = normalizarTextoClient_(d);
             if (!vistos.has(k)) {
                 vistos.add(k);
@@ -2190,11 +2246,10 @@
         }).join("");
     }
 
-    function agregarDocPersonalizadoConfig() {
+    async function agregarDocPersonalizadoConfig() {
         const inp = document.getElementById('cfgDocPersonalizadoInput');
         const val = (inp.value || '').trim();
         if (!val) return mostrarAlerta("Escriba el nombre del documento personalizado.");
-        // Capturar checks actuales antes de re-renderizar
         const actuales = [];
         document.querySelectorAll('.chk-cfg-docreq:checked').forEach(c => actuales.push(c.value));
         if (!actuales.some(x => normalizarTextoClient_(x) === normalizarTextoClient_(val))) {
@@ -2203,6 +2258,19 @@
         listaDocsReqEditando = actuales;
         inp.value = "";
         renderChecklistConfigDocs_();
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('action', 'agregarDocumentoCatalogoColegio');
+            formData.append('idColegio', estadoGlobal.idColegio);
+            formData.append('nuevoDoc', val);
+            const res = await fetch(URL_BACKEND, { method: 'POST', body: formData });
+            const data = JSON.parse(await res.text());
+            if (data.exito && Array.isArray(data.catalogo)) {
+                catalogoDocsColegioActual = data.catalogo;
+                estadoGlobal.catalogoDocumentos = data.catalogo;
+            }
+        } catch (e) {}
     }
 
     async function guardarConfigDocsEquipo() {
@@ -2760,7 +2828,14 @@
             <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">Categorías Base Permitidas (Combinables)</label>
             <div id="nsContenedorCategorias" class="grid grid-cols-2 gap-2 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200"></div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase mb-2">🚦 Documentos Obligatorios (Semáforo)</label>
-            <div id="nsContenedorDocsReq" class="grid grid-cols-1 gap-1.5 mb-4 bg-slate-50 p-3 rounded-xl border border-slate-200"></div>
+            <div id="nsContenedorDocsReq" class="grid grid-cols-1 gap-1.5 mb-2 bg-slate-50 p-3 rounded-xl border border-slate-200"></div>
+            <div class="bg-indigo-50/70 border border-indigo-200 rounded-xl p-2.5 mb-4 space-y-1.5">
+                <p class="text-[10px] font-black text-indigo-800 uppercase">+ Agregar Documento al Catálogo del Colegio</p>
+                <div class="flex gap-1.5">
+                    <input type="text" id="nsNuevoDocInput" placeholder="Ej. Carnet ADECOA, Certificado Médico" class="flex-1 border border-indigo-200 rounded-lg p-2 text-xs font-bold bg-white">
+                    <button type="button" id="btnAgregarDocNs" onclick="agregarDocumentoNuevoColegioDesdeModal()" class="bg-indigo-600 text-white text-xs font-bold px-3 rounded-lg hover:bg-indigo-700">Añadir</button>
+                </div>
+            </div>
         </div>
         <button id="btnGuardarSeleccion" onclick="guardarNuevaSeleccion()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl mt-2 hover:bg-slate-900 transition">Crear Selección</button>
     </div>
